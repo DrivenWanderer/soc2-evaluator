@@ -17,3 +17,11 @@ This file tracks all key technical decisions, owner approvals, approved dependen
 - **Context:** .NET 10 LTS environment check (`10.0.403` at `C:\Users\perki\.dotnet`).
 - **Decision:** Target `net10.0` with `global.json` pinned to `10.0.403`. Solution uses standard .NET 10 `Soc2Evaluator.slnx` format with `Directory.Build.props` enforcing `<Nullable>enable</Nullable>` and `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`.
 - **Approved Dependencies:** None added yet (using standard BCL and .NET 10 test SDK).
+
+### [2026-11-06] DEC-003: Approved CLI Host, DI, and Logging Dependencies
+- **Context:** Selection of packages for CLI argument parsing, dependency injection, and logging for Task 0.3.
+- **Decision:** Approve Option 1:
+  - `System.CommandLine` version `2.0.0` (MIT)
+  - `Microsoft.Extensions.DependencyInjection` version `10.0.0` (MIT)
+  - `Microsoft.Extensions.Logging.Console` version `10.0.0` (MIT)
+- **Owner Answer:** Approved Option 1.

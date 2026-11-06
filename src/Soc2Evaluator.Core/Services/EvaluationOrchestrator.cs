@@ -7,11 +7,16 @@ public class EvaluationOrchestrator : IEvaluationOrchestrator
 {
     private readonly IEnumerable<IScannerAdapter> _adapters;
     private readonly IEvidenceHasher _hasher;
+    private readonly IControlMappingService _mappingService;
 
-    public EvaluationOrchestrator(IEnumerable<IScannerAdapter> adapters, IEvidenceHasher hasher)
+    public EvaluationOrchestrator(
+        IEnumerable<IScannerAdapter> adapters,
+        IEvidenceHasher hasher,
+        IControlMappingService mappingService)
     {
         _adapters = adapters;
         _hasher = hasher;
+        _mappingService = mappingService;
     }
 
     public async Task<EvidenceBundle> RunEvaluationAsync(EvaluationRequest request, CancellationToken cancellationToken = default)
@@ -19,6 +24,11 @@ public class EvaluationOrchestrator : IEvaluationOrchestrator
         var runId = $"run-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..28];
         var timestamp = DateTimeOffset.UtcNow;
         var fullTargetPath = Path.GetFullPath(request.TargetPath);
+
+        if (!string.IsNullOrWhiteSpace(request.OrgConfigPath))
+        {
+            _mappingService.LoadMapping(request.OrgConfigPath);
+        }
 
         var allFindings = new List<Finding>();
         var allProvenance = new List<ToolExecutionProvenance>();
@@ -44,6 +54,8 @@ public class EvaluationOrchestrator : IEvaluationOrchestrator
             }
         }
 
+        var enrichedFindings = allFindings.Select(_mappingService.EnrichFinding).ToList();
+
         var unsignedManifest = new EvidenceManifest(
             RunId: runId,
             TimestampUtc: timestamp,
@@ -53,7 +65,7 @@ public class EvaluationOrchestrator : IEvaluationOrchestrator
             CriteriaInScope: request.Criteria,
             ToolProvenance: allProvenance,
             Artifacts: allArtifacts,
-            Findings: allFindings,
+            Findings: enrichedFindings,
             ManifestSha256: null
         );
 

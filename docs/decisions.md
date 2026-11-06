@@ -60,3 +60,11 @@ This file tracks all key technical decisions, owner approvals, approved dependen
   - **Accurate Coverage Table:** Coverage table derives status directly from `ToolExecutionProvenance` (`Evaluated`, `Not Run`, `Failed`) with specific reasons.
   - **Markdown Escaping:** Implemented `MarkdownSanitizer` to escape HTML tags, pipes, and control characters in untrusted scanner output.
   - **Integrity Terminology:** Replaced "tamper-evident signature" with "checksum-backed integrity record", added `VerifyArtifacts` byte-hash validation, and save a standalone `manifest.sha256` file.
+
+### [2026-11-06] DEC-008: Control Mapping Engine and Embedded Defaults
+- **Context:** Per-organization control mapping and default Trust Services Criteria alignment (Plan Section 5.4).
+- **Decision:**
+  - Default mappings reside in `config/control-mapping.default.yml` and are embedded directly into `Soc2Evaluator.Core` as a linked resource, ensuring the CLI binary can execute anywhere without external directory dependencies.
+  - Adopted `YamlDotNet` version `18.1.0` (MIT) for deterministic YAML parsing and deserialization.
+  - `ControlMappingService` supports merging an optional organization override file (`--org-config <path>`) specifying custom org control IDs, severity overrides, and rule disabling with required justifications.
+  - Disabled rules transition findings to `Suppressed` status with the justification recorded in `RiskExplanation`, providing full auditor auditability.

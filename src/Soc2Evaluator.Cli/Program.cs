@@ -29,6 +29,7 @@ services.AddSingleton<IEvidenceHasher, EvidenceHasher>();
 services.AddSingleton<IProcessRunner, ProcessRunner>();
 services.AddSingleton<IControlMappingService, ControlMappingService>();
 services.AddSingleton<IRemediationService, RemediationService>();
+services.AddSingleton<IBaselineDiffService, BaselineDiffService>();
 
 // Rules
 services.AddSingleton<IRuleCheck, VerboseErrorsCheck>();
@@ -63,6 +64,10 @@ var rootCommand = CommandLineBuilder.BuildRootCommand(async (scanOptions, cancel
     if (!string.IsNullOrWhiteSpace(scanOptions.OrgConfigPath))
     {
         logger.LogInformation("Organization configuration: {OrgConfig}", Path.GetFullPath(scanOptions.OrgConfigPath));
+    }
+    if (!string.IsNullOrWhiteSpace(scanOptions.BaselinePath))
+    {
+        logger.LogInformation("Baseline findings comparison: {BaselinePath}", Path.GetFullPath(scanOptions.BaselinePath));
     }
 
     // Validate formats

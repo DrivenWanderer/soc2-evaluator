@@ -9,17 +9,20 @@ public class EvaluationOrchestrator : IEvaluationOrchestrator
     private readonly IEvidenceHasher _hasher;
     private readonly IControlMappingService _mappingService;
     private readonly IRemediationService? _remediationService;
+    private readonly IBaselineDiffService? _baselineDiffService;
 
     public EvaluationOrchestrator(
         IEnumerable<IScannerAdapter> adapters,
         IEvidenceHasher hasher,
         IControlMappingService mappingService,
-        IRemediationService? remediationService = null)
+        IRemediationService? remediationService = null,
+        IBaselineDiffService? baselineDiffService = null)
     {
         _adapters = adapters;
         _hasher = hasher;
         _mappingService = mappingService;
         _remediationService = remediationService;
+        _baselineDiffService = baselineDiffService;
     }
 
     public async Task<EvidenceBundle> RunEvaluationAsync(EvaluationRequest request, CancellationToken cancellationToken = default)
@@ -62,6 +65,12 @@ public class EvaluationOrchestrator : IEvaluationOrchestrator
             .Select(f => _remediationService?.EnrichWithRemediation(f) ?? f)
             .ToList();
 
+        BaselineDelta? baselineDelta = null;
+        if (!string.IsNullOrWhiteSpace(request.BaselinePath) && _baselineDiffService != null)
+        {
+            baselineDelta = _baselineDiffService.ComputeDelta(enrichedFindings, request.BaselinePath);
+        }
+
         var unsignedManifest = new EvidenceManifest(
             RunId: runId,
             TimestampUtc: timestamp,
@@ -72,7 +81,8 @@ public class EvaluationOrchestrator : IEvaluationOrchestrator
             ToolProvenance: allProvenance,
             Artifacts: allArtifacts,
             Findings: enrichedFindings,
-            ManifestSha256: null
+            ManifestSha256: null,
+            BaselineDelta: baselineDelta
         );
 
         var signedManifest = _hasher.AttachManifestChecksum(unsignedManifest);

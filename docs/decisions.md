@@ -50,3 +50,13 @@ This file tracks all key technical decisions, owner approvals, approved dependen
   - Docker and container runtimes are strictly optional convenience layers (never required).
   - Explicit flags (`--sandbox`, `--offline`) maintain strict predictability and prevent silent fallback behavior.
 - **Owner Answer:** Approved.
+
+### [2026-11-06] DEC-007: PR #1 Review Fixes & Integrity Clarifications
+- **Context:** Addressing PR #1 review comments on evidence secrecy, accurate clean scans, markdown escaping, CI gating, and checksum verification.
+- **Decision:**
+  - **Artifact Sanitization:** `SarifParser.ScrubSarif` sanitizes raw snippet text before persisting artifacts to prevent secret leakage into evidence bundles.
+  - **Clean Scan Accuracy:** Removed hardcoded sample finding injection from `EvaluationOrchestrator` so clean scans report 0 findings accurately. Sample findings are restricted to test fixtures.
+  - **CI Gating & Format Strictness:** Enforced `--fail-on` non-zero exit code (exit 2) when findings meet/exceed threshold, and strictly reject unsupported formats like `sarif` with clear scheduling guidance (Phase 3).
+  - **Accurate Coverage Table:** Coverage table derives status directly from `ToolExecutionProvenance` (`Evaluated`, `Not Run`, `Failed`) with specific reasons.
+  - **Markdown Escaping:** Implemented `MarkdownSanitizer` to escape HTML tags, pipes, and control characters in untrusted scanner output.
+  - **Integrity Terminology:** Replaced "tamper-evident signature" with "checksum-backed integrity record", added `VerifyArtifacts` byte-hash validation, and save a standalone `manifest.sha256` file.

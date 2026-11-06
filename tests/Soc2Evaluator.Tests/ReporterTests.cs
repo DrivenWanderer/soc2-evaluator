@@ -56,6 +56,90 @@ public class ReporterTests
     }
 
     [Fact]
+    public async Task MarkdownReporter_EscapesUntrustedScannerOutputAndHtmlTags()
+    {
+        var maliciousFinding = new Finding(
+            Id: "SEC-INJECT-1",
+            RuleId: "SEC-INJECT",
+            Title: "Malicious <script>alert(1)</script> & | pipes | in title",
+            SourceName: "untrusted-scanner",
+            SourceVersion: "1.0.0",
+            TscCriteria: ["CC6.1"],
+            OrgControlId: null,
+            Severity: Severity.Medium,
+            Category: FindingCategory.Code,
+            Location: new FindingLocation("<bad/path>|file.cs", 1, 1),
+            RedactedEvidence: "secret```injection",
+            RiskExplanation: "Risk with <b>HTML</b> and | pipes |",
+            RecommendedFix: "Fix with <script> and | pipes |",
+            Effort: EffortEstimate.Low,
+            Confidence: ConfidenceLevel.High,
+            Fingerprint: "fp123"
+        );
+
+        var manifest = new EvidenceManifest(
+            RunId: "test-run-escaping",
+            TimestampUtc: DateTimeOffset.UtcNow,
+            ToolVersion: "0.1.0",
+            Target: "C:/Projects/<script>",
+            CommitSha: "abc",
+            CriteriaInScope: ["CC6.1"],
+            ToolProvenance: [],
+            Artifacts: [],
+            Findings: [maliciousFinding],
+            ManifestSha256: "dummyhash"
+        );
+
+        var reporter = new MarkdownReporter();
+        var md = await reporter.RenderAsync(manifest);
+
+        // Verify HTML tags are escaped
+        Assert.DoesNotContain("<script>", md);
+        Assert.Contains("&lt;script&gt;", md);
+        Assert.DoesNotContain("<b>HTML</b>", md);
+        Assert.Contains("&lt;b&gt;HTML&lt;/b&gt;", md);
+
+        // Fenced code block injection prevention
+        Assert.DoesNotContain("secret```injection", md);
+        Assert.Contains("secret'''injection", md);
+    }
+
+    [Fact]
+    public async Task MarkdownReporter_DerivesCoverageStatusAccuratelyWhenToolNotRun()
+    {
+        var provenance = new ToolExecutionProvenance(
+            ToolName: "gitleaks",
+            ToolVersion: null,
+            Arguments: [],
+            StartTimeUtc: DateTimeOffset.UtcNow,
+            EndTimeUtc: DateTimeOffset.UtcNow,
+            ExitCode: null,
+            Status: "NotRun",
+            ErrorMessage: "Scanner 'gitleaks' is not installed or not in PATH."
+        );
+
+        var manifest = new EvidenceManifest(
+            RunId: "test-coverage-notrun",
+            TimestampUtc: DateTimeOffset.UtcNow,
+            ToolVersion: "0.1.0",
+            Target: "C:/Projects/Sample",
+            CommitSha: null,
+            CriteriaInScope: ["CC6.1"],
+            ToolProvenance: [provenance],
+            Artifacts: [],
+            Findings: [],
+            ManifestSha256: "hash"
+        );
+
+        var reporter = new MarkdownReporter();
+        var md = await reporter.RenderAsync(manifest);
+
+        // Must show Not Run, and must not claim Evaluated
+        Assert.Contains("| gitleaks | CC6.1 | Not Run |", md);
+        Assert.Contains("Scanner 'gitleaks' is not installed", md);
+    }
+
+    [Fact]
     public void ReporterFactory_ResolvesSupportedReporters()
     {
         var factory = new ReporterFactory([new MarkdownReporter(), new JsonReporter()]);
@@ -111,6 +195,6 @@ public class ReporterTests
             Findings: [finding]
         );
 
-        return _hasher.SignManifest(rawManifest);
+        return _hasher.AttachManifestChecksum(rawManifest);
     }
 }

@@ -11,7 +11,6 @@ public class EvidenceHasherTests
     [Fact]
     public void ComputeSha256_ComputesKnownHashCorrectly()
     {
-        // SHA-256 of "hello world" in lowercase hex
         const string input = "hello world";
         const string expected = "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9";
 
@@ -21,45 +20,75 @@ public class EvidenceHasherTests
     }
 
     [Fact]
-    public void SignManifest_ComputesDeterministicHashAndVerifies()
+    public void AttachManifestChecksum_ComputesDeterministicHashAndVerifies()
     {
         var manifest = CreateSampleManifest();
 
-        var signed1 = _hasher.SignManifest(manifest);
-        var signed2 = _hasher.SignManifest(manifest);
+        var signed1 = _hasher.AttachManifestChecksum(manifest);
+        var signed2 = _hasher.AttachManifestChecksum(manifest);
 
         Assert.NotNull(signed1.ManifestSha256);
         Assert.Equal(signed1.ManifestSha256, signed2.ManifestSha256);
-        Assert.True(_hasher.VerifyManifest(signed1));
+        Assert.True(_hasher.VerifyManifestChecksum(signed1));
     }
 
     [Fact]
-    public void VerifyManifest_DetectsTamperingInFindings()
+    public void VerifyManifestChecksum_DetectsTamperingInFindings()
     {
         var manifest = CreateSampleManifest();
-        var signed = _hasher.SignManifest(manifest);
+        var signed = _hasher.AttachManifestChecksum(manifest);
 
-        // Tamper with finding title
         var tamperedFindings = signed.Findings.Select(f => f with { Title = "Tampered Title" }).ToList();
         var tamperedManifest = signed with { Findings = tamperedFindings };
 
-        Assert.False(_hasher.VerifyManifest(tamperedManifest));
+        Assert.False(_hasher.VerifyManifestChecksum(tamperedManifest));
     }
 
     [Fact]
-    public void VerifyManifest_DetectsTamperingInArtifactHash()
+    public void VerifyManifestChecksum_DetectsTamperingInArtifactHash()
     {
         var manifest = CreateSampleManifest();
-        var signed = _hasher.SignManifest(manifest);
+        var signed = _hasher.AttachManifestChecksum(manifest);
 
-        // Tamper with an artifact hash
         var tamperedArtifacts = new List<EvidenceArtifact>
         {
             new("sarif.json", "application/json", "deadbeef00000000000000000000000000000000000000000000000000000000", "artifacts/sarif.json")
         };
         var tamperedManifest = signed with { Artifacts = tamperedArtifacts };
 
-        Assert.False(_hasher.VerifyManifest(tamperedManifest));
+        Assert.False(_hasher.VerifyManifestChecksum(tamperedManifest));
+    }
+
+    [Fact]
+    public void VerifyArtifacts_ValidatesBytesAndDetectsTampering()
+    {
+        const string rawContent = "{\"version\":\"2.1.0\",\"runs\":[]}";
+        var rawBytes = System.Text.Encoding.UTF8.GetBytes(rawContent);
+        var expectedHash = _hasher.ComputeSha256(rawBytes);
+
+        var artifact = new EvidenceArtifact("test.sarif", "application/json", expectedHash, "evidence/test.sarif");
+        var manifest = new EvidenceManifest(
+            RunId: "test-run",
+            TimestampUtc: DateTimeOffset.UtcNow,
+            ToolVersion: "0.1.0",
+            Target: ".",
+            CommitSha: null,
+            CriteriaInScope: ["CC6.1"],
+            ToolProvenance: [],
+            Artifacts: [artifact],
+            Findings: []
+        );
+
+        var validArtifacts = new Dictionary<string, byte[]> { ["test.sarif"] = rawBytes };
+        Assert.True(_hasher.VerifyArtifacts(manifest, validArtifacts));
+
+        // Tamper with bytes
+        var tamperedBytes = System.Text.Encoding.UTF8.GetBytes("tampered content");
+        var tamperedArtifacts = new Dictionary<string, byte[]> { ["test.sarif"] = tamperedBytes };
+        Assert.False(_hasher.VerifyArtifacts(manifest, tamperedArtifacts));
+
+        // Missing artifact
+        Assert.False(_hasher.VerifyArtifacts(manifest, new Dictionary<string, byte[]>()));
     }
 
     [Fact]

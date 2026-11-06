@@ -124,10 +124,9 @@ public class GitleaksAdapter : IScannerAdapter
         }
 
         var sarifContent = string.Empty;
-        byte[] rawBytes = [];
         if (File.Exists(tempReportPath))
         {
-            rawBytes = await File.ReadAllBytesAsync(tempReportPath, cancellationToken);
+            var rawBytes = await File.ReadAllBytesAsync(tempReportPath, cancellationToken);
             sarifContent = Encoding.UTF8.GetString(rawBytes);
             try { File.Delete(tempReportPath); } catch { /* best effort cleanup */ }
         }
@@ -143,9 +142,12 @@ public class GitleaksAdapter : IScannerAdapter
         var rawArtifacts = new List<EvidenceArtifact>();
         var artifactMap = new Dictionary<string, byte[]>();
 
-        if (rawBytes.Length > 0)
+        // Always scrub secrets from SARIF before persisting as an evidence bundle artifact
+        if (!string.IsNullOrWhiteSpace(sarifContent))
         {
-            var hash = _hasher.ComputeSha256(rawBytes);
+            var scrubbedSarif = SarifParser.ScrubSarif(sarifContent);
+            var scrubbedBytes = Encoding.UTF8.GetBytes(scrubbedSarif);
+            var hash = _hasher.ComputeSha256(scrubbedBytes);
             var artifactName = "gitleaks.sarif";
             rawArtifacts.Add(new EvidenceArtifact(
                 Name: artifactName,
@@ -153,7 +155,7 @@ public class GitleaksAdapter : IScannerAdapter
                 Sha256Hash: hash,
                 RelativePath: $"evidence/{artifactName}"
             ));
-            artifactMap[artifactName] = rawBytes;
+            artifactMap[artifactName] = scrubbedBytes;
         }
 
         var provenance = new ToolExecutionProvenance(

@@ -44,34 +44,6 @@ public class EvaluationOrchestrator : IEvaluationOrchestrator
             }
         }
 
-        // Plan Section 10 Phase 0 requirement:
-        // "MD and JSON reporters with a hard-coded sample finding"
-        // Ensure at least one finding is present to verify reporting layout if no scanners detect findings.
-        if (allFindings.Count == 0)
-        {
-            var sampleLocation = new FindingLocation("appsettings.json", 14, 5);
-            var sampleFinding = new Finding(
-                Id: "SEC-001-SAMPLE",
-                RuleId: "SEC-001",
-                Title: "Hardcoded connection string detected (Phase 0 Sample Finding)",
-                SourceName: "Soc2Evaluator.Sample",
-                SourceVersion: "0.1.0",
-                TscCriteria: ["CC6.1"],
-                OrgControlId: "ACME-AC-04",
-                Severity: Severity.High,
-                Category: FindingCategory.Code,
-                Location: sampleLocation,
-                RedactedEvidence: "Server=tcp:sqlserver.database.windows.net;Database=SampleDb;User Id=dbadmin;Password=***[REDACTED]***",
-                RiskExplanation: "Hardcoded database credentials in source-controlled configuration files expose the data tier to unauthorized access.",
-                RecommendedFix: "Extract sensitive credentials into Azure Key Vault, AWS Secrets Manager, or machine-level environment variables.",
-                Effort: EffortEstimate.Low,
-                Confidence: ConfidenceLevel.High,
-                Fingerprint: Finding.ComputeFingerprint("SEC-001", sampleLocation)
-            );
-
-            allFindings.Add(sampleFinding);
-        }
-
         var unsignedManifest = new EvidenceManifest(
             RunId: runId,
             TimestampUtc: timestamp,
@@ -85,7 +57,7 @@ public class EvaluationOrchestrator : IEvaluationOrchestrator
             ManifestSha256: null
         );
 
-        var signedManifest = _hasher.SignManifest(unsignedManifest);
+        var signedManifest = _hasher.AttachManifestChecksum(unsignedManifest);
 
         return new EvidenceBundle(signedManifest, artifactBytes);
     }

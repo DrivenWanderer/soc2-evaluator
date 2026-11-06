@@ -17,12 +17,12 @@ public class MarkdownReporter : IReporter
         sb.AppendLine();
         sb.AppendLine("| Parameter | Value |");
         sb.AppendLine("|---|---|");
-        sb.AppendLine($"| **Target** | `{manifest.Target}` |");
+        sb.AppendLine($"| **Target** | `{MarkdownSanitizer.EscapeTableCell(manifest.Target)}` |");
         sb.AppendLine($"| **Date (UTC)** | `{manifest.TimestampUtc:yyyy-MM-dd HH:mm:ss} UTC` |");
-        sb.AppendLine($"| **Tool Version** | `v{manifest.ToolVersion}` |");
-        sb.AppendLine($"| **Run ID** | `{manifest.RunId}` |");
-        sb.AppendLine($"| **Commit SHA** | `{(string.IsNullOrWhiteSpace(manifest.CommitSha) ? "N/A" : manifest.CommitSha)}` |");
-        sb.AppendLine($"| **Evidence Manifest SHA-256** | `{manifest.ManifestSha256 ?? "Unsigned"}` |");
+        sb.AppendLine($"| **Tool Version** | `v{MarkdownSanitizer.EscapeTableCell(manifest.ToolVersion)}` |");
+        sb.AppendLine($"| **Run ID** | `{MarkdownSanitizer.EscapeTableCell(manifest.RunId)}` |");
+        sb.AppendLine($"| **Commit SHA** | `{(string.IsNullOrWhiteSpace(manifest.CommitSha) ? "N/A" : MarkdownSanitizer.EscapeTableCell(manifest.CommitSha))}` |");
+        sb.AppendLine($"| **Integrity Checksum (SHA-256)** | `{MarkdownSanitizer.EscapeTableCell(manifest.ManifestSha256 ?? "Unsigned")}` |");
         sb.AppendLine();
 
         // 2. Disclaimer
@@ -62,15 +62,40 @@ public class MarkdownReporter : IReporter
         // 4. Coverage Table
         sb.AppendLine("## Coverage Table");
         sb.AppendLine();
-        sb.AppendLine("| Criteria in Scope | Tools Executed | Checks Executed | Status |");
+        sb.AppendLine("| Scanner / Source | Criteria in Scope | Status | Coverage Details |");
         sb.AppendLine("|---|---|---|---|");
-        var toolsSummary = manifest.ToolProvenance.Count > 0
-            ? string.Join(", ", manifest.ToolProvenance.Select(p => p.ToolName))
-            : "Native Only";
-        var criteriaSummary = manifest.CriteriaInScope.Count > 0
-            ? string.Join(", ", manifest.CriteriaInScope)
-            : "Security (Common Criteria)";
-        sb.AppendLine($"| {criteriaSummary} | {toolsSummary} | {findings.Count} findings evaluated | Evaluated |");
+
+        if (manifest.ToolProvenance.Count == 0)
+        {
+            var criteriaStr = manifest.CriteriaInScope.Count > 0 ? string.Join(", ", manifest.CriteriaInScope) : "Security";
+            sb.AppendLine($"| Native Evaluator | {MarkdownSanitizer.EscapeTableCell(criteriaStr)} | Evaluated | {findings.Count} finding(s) evaluated |");
+        }
+        else
+        {
+            foreach (var prov in manifest.ToolProvenance)
+            {
+                var toolFindings = findings.Count(f => string.Equals(f.SourceName, prov.ToolName, StringComparison.OrdinalIgnoreCase));
+                var criteriaStr = manifest.CriteriaInScope.Count > 0 ? string.Join(", ", manifest.CriteriaInScope) : "CC6.1";
+
+                var statusText = prov.Status switch
+                {
+                    "Success" => "Evaluated",
+                    "NotRun" => "Not Run",
+                    "Failed" => "Failed",
+                    _ => prov.Status
+                };
+
+                var detailText = prov.Status switch
+                {
+                    "Success" => $"{toolFindings} finding(s) evaluated",
+                    "NotRun" => string.IsNullOrWhiteSpace(prov.ErrorMessage) ? "Tool missing or skipped" : prov.ErrorMessage,
+                    "Failed" => string.IsNullOrWhiteSpace(prov.ErrorMessage) ? "Tool execution failed" : prov.ErrorMessage,
+                    _ => "N/A"
+                };
+
+                sb.AppendLine($"| {MarkdownSanitizer.EscapeTableCell(prov.ToolName)} | {MarkdownSanitizer.EscapeTableCell(criteriaStr)} | {MarkdownSanitizer.EscapeTableCell(statusText)} | {MarkdownSanitizer.EscapeTableCell(detailText)} |");
+            }
+        }
         sb.AppendLine();
 
         // 5. Findings
@@ -85,33 +110,36 @@ public class MarkdownReporter : IReporter
         {
             foreach (var finding in findings.OrderByDescending(f => f.Severity))
             {
-                sb.AppendLine($"### [{finding.Severity}] {finding.Id}: {finding.Title}");
+                var safeTitle = MarkdownSanitizer.EscapeMarkdown(finding.Title);
+                var safeId = MarkdownSanitizer.EscapeMarkdown(finding.Id);
+                sb.AppendLine($"### [{finding.Severity}] {safeId}: {safeTitle}");
                 sb.AppendLine();
-                sb.AppendLine($"- **Rule ID:** `{finding.RuleId}`");
+                sb.AppendLine($"- **Rule ID:** `{MarkdownSanitizer.EscapeMarkdown(finding.RuleId)}`");
                 sb.AppendLine($"- **Category:** `{finding.Category}`");
-                sb.AppendLine($"- **TSC Criteria:** {string.Join(", ", finding.TscCriteria)}");
+                sb.AppendLine($"- **TSC Criteria:** {string.Join(", ", finding.TscCriteria.Select(MarkdownSanitizer.EscapeMarkdown))}");
                 if (!string.IsNullOrWhiteSpace(finding.OrgControlId))
                 {
-                    sb.AppendLine($"- **Org Control ID:** `{finding.OrgControlId}`");
+                    sb.AppendLine($"- **Org Control ID:** `{MarkdownSanitizer.EscapeMarkdown(finding.OrgControlId)}`");
                 }
-                sb.AppendLine($"- **Source:** {finding.SourceName} {(string.IsNullOrWhiteSpace(finding.SourceVersion) ? string.Empty : $"v{finding.SourceVersion}")}");
-                sb.AppendLine($"- **Location:** `{finding.Location?.ToString() ?? "N/A"}`");
+                sb.AppendLine($"- **Source:** {MarkdownSanitizer.EscapeMarkdown(finding.SourceName)} {(string.IsNullOrWhiteSpace(finding.SourceVersion) ? string.Empty : $"v{MarkdownSanitizer.EscapeMarkdown(finding.SourceVersion)}")}");
+                sb.AppendLine($"- **Location:** `{MarkdownSanitizer.EscapeMarkdown(finding.Location?.ToString() ?? "N/A")}`");
                 sb.AppendLine($"- **Confidence:** {finding.Confidence} | **Effort:** {finding.Effort}");
                 sb.AppendLine($"- **Fingerprint:** `{finding.Fingerprint}`");
                 sb.AppendLine();
                 sb.AppendLine("**Risk Explanation:**");
-                sb.AppendLine(finding.RiskExplanation);
+                sb.AppendLine(MarkdownSanitizer.EscapeMarkdown(finding.RiskExplanation));
                 sb.AppendLine();
                 if (!string.IsNullOrWhiteSpace(finding.RedactedEvidence))
                 {
                     sb.AppendLine("**Redacted Evidence:**");
                     sb.AppendLine("```");
-                    sb.AppendLine(finding.RedactedEvidence);
+                    // Inside fenced code blocks, avoid triple-backtick escape collisions
+                    sb.AppendLine(finding.RedactedEvidence.Replace("```", "'''"));
                     sb.AppendLine("```");
                     sb.AppendLine();
                 }
                 sb.AppendLine("**Recommended Remediation:**");
-                sb.AppendLine(finding.RecommendedFix);
+                sb.AppendLine(MarkdownSanitizer.EscapeMarkdown(finding.RecommendedFix));
                 sb.AppendLine();
                 sb.AppendLine("---");
                 sb.AppendLine();
@@ -132,7 +160,7 @@ public class MarkdownReporter : IReporter
             foreach (var p in manifest.ToolProvenance)
             {
                 var argsStr = p.Arguments.Count > 0 ? string.Join(" ", p.Arguments) : "none";
-                sb.AppendLine($"| {p.ToolName} | {p.ToolVersion ?? "Unknown"} | {p.Status} | {p.ExitCode?.ToString() ?? "N/A"} | `{argsStr}` |");
+                sb.AppendLine($"| {MarkdownSanitizer.EscapeTableCell(p.ToolName)} | {MarkdownSanitizer.EscapeTableCell(p.ToolVersion ?? "Unknown")} | {MarkdownSanitizer.EscapeTableCell(p.Status)} | {p.ExitCode?.ToString() ?? "N/A"} | `{MarkdownSanitizer.EscapeTableCell(argsStr)}` |");
             }
         }
         sb.AppendLine();

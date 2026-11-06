@@ -4,6 +4,7 @@ using Soc2Evaluator.Adapters;
 using Soc2Evaluator.Adapters.Gitleaks;
 using Soc2Evaluator.Cli;
 using Soc2Evaluator.Core.Adapters;
+using Soc2Evaluator.Core.Models;
 using Soc2Evaluator.Core.Services;
 using Soc2Evaluator.Reporting;
 
@@ -50,6 +51,17 @@ var rootCommand = CommandLineBuilder.BuildRootCommand(async (scanOptions, cancel
     logger.LogInformation("Criteria in scope: {Criteria}", string.Join(", ", scanOptions.Criteria));
     logger.LogInformation("Output destination: {OutputPath}", Path.GetFullPath(scanOptions.OutputPath));
 
+    // Validate formats
+    var supportedFormats = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "md", "json" };
+    foreach (var format in scanOptions.Formats)
+    {
+        if (!supportedFormats.Contains(format))
+        {
+            logger.LogError("Unsupported report format '{Format}'. Supported formats in this phase: md, json. (SARIF output is scheduled for Phase 3).", format);
+            return 1;
+        }
+    }
+
     // Determine Git commit SHA if target has git
     string? commitSha = null;
     try
@@ -85,7 +97,7 @@ var rootCommand = CommandLineBuilder.BuildRootCommand(async (scanOptions, cancel
     var evidenceDir = Path.Combine(outDir, "evidence");
     Directory.CreateDirectory(evidenceDir);
 
-    // Save raw evidence artifacts
+    // Save scrubbed evidence artifacts
     foreach (var (filename, bytes) in bundle.RawArtifactBytes)
     {
         var artifactFile = Path.Combine(evidenceDir, filename);
@@ -107,22 +119,48 @@ var rootCommand = CommandLineBuilder.BuildRootCommand(async (scanOptions, cancel
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to render report for format: {Format}", format);
+            return 1;
         }
     }
 
-    // Always generate manifest evidence-bundle.json
+    // Generate manifest evidence-bundle.json
     var bundleReporter = reporterFactory.GetReporter("json");
     var manifestContent = await bundleReporter.RenderAsync(manifest, cancellationToken);
     var manifestPath = Path.Combine(outDir, "evidence-bundle.json");
     await File.WriteAllTextAsync(manifestPath, manifestContent, cancellationToken);
-    logger.LogInformation("Saved tamper-evident evidence bundle manifest: {Path}", manifestPath);
+    logger.LogInformation("Saved checksum-backed evidence bundle manifest: {Path}", manifestPath);
+
+    // Save external checksum file for separately trusted verification
+    if (!string.IsNullOrWhiteSpace(manifest.ManifestSha256))
+    {
+        var checksumFilePath = Path.Combine(outDir, "manifest.sha256");
+        await File.WriteAllTextAsync(checksumFilePath, $"{manifest.ManifestSha256} *evidence-bundle.json\n", cancellationToken);
+        logger.LogInformation("Saved standalone checksum record: {Path}", checksumFilePath);
+    }
 
     logger.LogInformation("================================================================================");
     logger.LogInformation("Scan completed successfully.");
     logger.LogInformation("Run ID: {RunId}", manifest.RunId);
-    logger.LogInformation("Evidence Manifest SHA-256: {Hash}", manifest.ManifestSha256);
+    logger.LogInformation("Evidence Manifest SHA-256 Checksum: {Hash}", manifest.ManifestSha256);
     logger.LogInformation("Total findings evaluated: {Count}", manifest.Findings.Count);
     logger.LogInformation("================================================================================");
+
+    // Evaluate CI Gating threshold (--fail-on)
+    if (!string.IsNullOrWhiteSpace(scanOptions.FailOnSeverity))
+    {
+        if (!Enum.TryParse<Severity>(scanOptions.FailOnSeverity, ignoreCase: true, out var threshold))
+        {
+            logger.LogError("Invalid --fail-on severity threshold '{Threshold}'. Valid values: Critical, High, Medium, Low, Informational.", scanOptions.FailOnSeverity);
+            return 1;
+        }
+
+        var gatingFailures = manifest.Findings.Where(f => f.Severity >= threshold).ToList();
+        if (gatingFailures.Count > 0)
+        {
+            logger.LogError("CI Gating Failure: {Count} finding(s) met or exceeded severity threshold '{Threshold}'.", gatingFailures.Count, threshold);
+            return 2;
+        }
+    }
 
     return 0;
 });

@@ -35,7 +35,7 @@ public class EvidenceHasher : IEvidenceHasher
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    public EvidenceManifest SignManifest(EvidenceManifest manifest)
+    public EvidenceManifest AttachManifestChecksum(EvidenceManifest manifest)
     {
         var unsignedManifest = manifest with { ManifestSha256 = null };
         var json = JsonSerializer.Serialize(unsignedManifest, JsonOptions);
@@ -43,7 +43,7 @@ public class EvidenceHasher : IEvidenceHasher
         return manifest with { ManifestSha256 = hash };
     }
 
-    public bool VerifyManifest(EvidenceManifest manifest)
+    public bool VerifyManifestChecksum(EvidenceManifest manifest)
     {
         if (string.IsNullOrWhiteSpace(manifest.ManifestSha256))
         {
@@ -55,5 +55,24 @@ public class EvidenceHasher : IEvidenceHasher
         var computedHash = ComputeSha256(json);
 
         return string.Equals(manifest.ManifestSha256, computedHash, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public bool VerifyArtifacts(EvidenceManifest manifest, IReadOnlyDictionary<string, byte[]> artifactBytes)
+    {
+        foreach (var artifact in manifest.Artifacts)
+        {
+            if (!artifactBytes.TryGetValue(artifact.Name, out var bytes))
+            {
+                return false;
+            }
+
+            var actualHash = ComputeSha256(bytes);
+            if (!string.Equals(artifact.Sha256Hash, actualHash, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

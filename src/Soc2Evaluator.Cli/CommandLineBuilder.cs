@@ -56,14 +56,14 @@ public static class CommandLineBuilder
 
         var formatOpt = new Option<string[]>("--format")
         {
-            Description = "Report formats to generate (md, json, sarif)",
+            Description = "Report formats to generate (supported: md, json)",
             AllowMultipleArgumentsPerToken = true,
             DefaultValueFactory = _ => ["md", "json"]
         };
 
         var failOnOpt = new Option<string?>("--fail-on")
         {
-            Description = "Severity threshold for non-zero exit in CI gating (critical, high, medium, low)"
+            Description = "Severity threshold for non-zero exit in CI gating (critical, high, medium, low, informational)"
         };
 
         var baselineOpt = new Option<string?>("--baseline")

@@ -77,6 +77,15 @@ public class AdapterTests
     }
 
     [Fact]
+    public void SarifParser_ScrubSarif_RemovesRawSecretsFromArtifactContent()
+    {
+        var scrubbed = SarifParser.ScrubSarif(SampleSarif);
+
+        Assert.DoesNotContain("AKIAIOSFODNN7EXAMPLE", scrubbed);
+        Assert.Contains("***[REDACTED]***", scrubbed);
+    }
+
+    [Fact]
     public async Task GitleaksAdapter_WhenToolMissing_DegradesGracefullyWithNotRunStatus()
     {
         var mockRunner = new MockProcessRunner(exists: false);
@@ -95,14 +104,13 @@ public class AdapterTests
     }
 
     [Fact]
-    public async Task GitleaksAdapter_WhenToolExecutes_CapturesProvenanceAndArtifacts()
+    public async Task GitleaksAdapter_WhenToolExecutes_CapturesProvenanceAndScrubsArtifacts()
     {
         var mockRunner = new MockProcessRunner(exists: true)
         {
             VersionOutput = "v8.18.2",
             OnRun = (args) =>
             {
-                // find --report-path argument and write the sample SARIF to it
                 var reportPathIndex = args.ToList().IndexOf("--report-path");
                 if (reportPathIndex >= 0 && reportPathIndex + 1 < args.Count)
                 {
@@ -124,6 +132,13 @@ public class AdapterTests
         Assert.Single(result.Artifacts);
         Assert.Equal("gitleaks.sarif", result.Artifacts[0].Name);
         Assert.NotNull(result.Artifacts[0].Sha256Hash);
+
+        // Verify artifact bytes do NOT contain raw secrets
+        Assert.True(result.RawArtifactBytes.ContainsKey("gitleaks.sarif"));
+        var artifactBytes = result.RawArtifactBytes["gitleaks.sarif"];
+        var artifactText = Encoding.UTF8.GetString(artifactBytes);
+        Assert.DoesNotContain("AKIAIOSFODNN7EXAMPLE", artifactText);
+        Assert.Contains("***[REDACTED]***", artifactText);
     }
 
     private class MockProcessRunner : IProcessRunner

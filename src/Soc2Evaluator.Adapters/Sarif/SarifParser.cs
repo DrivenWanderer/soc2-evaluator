@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Text.Json.Nodes;
 using Soc2Evaluator.Core.Models;
 
 namespace Soc2Evaluator.Adapters.Sarif;
@@ -130,7 +131,61 @@ public static class SarifParser
         return (findings, toolVersion);
     }
 
-    private static string RedactSensitiveContent(string text)
+    /// <summary>
+    /// Scrubs raw secrets from SARIF snippet text before persisting as an evidence bundle artifact.
+    /// </summary>
+    public static string ScrubSarif(string sarifJson)
+    {
+        if (string.IsNullOrWhiteSpace(sarifJson)) return sarifJson;
+
+        try
+        {
+            var node = JsonNode.Parse(sarifJson);
+            if (node == null) return sarifJson;
+
+            ScrubSnippetsRecursive(node);
+            return node.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch
+        {
+            return sarifJson;
+        }
+    }
+
+    private static void ScrubSnippetsRecursive(JsonNode node)
+    {
+        if (node is JsonObject obj)
+        {
+            if (obj.TryGetPropertyValue("snippet", out var snipNode) && snipNode is JsonObject snipObj)
+            {
+                if (snipObj.TryGetPropertyValue("text", out var textNode) && textNode != null)
+                {
+                    var text = textNode.GetValue<string>();
+                    snipObj["text"] = RedactSensitiveContent(text);
+                }
+            }
+
+            foreach (var prop in obj.ToList())
+            {
+                if (prop.Value != null)
+                {
+                    ScrubSnippetsRecursive(prop.Value);
+                }
+            }
+        }
+        else if (node is JsonArray arr)
+        {
+            foreach (var item in arr)
+            {
+                if (item != null)
+                {
+                    ScrubSnippetsRecursive(item);
+                }
+            }
+        }
+    }
+
+    public static string RedactSensitiveContent(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return string.Empty;
 

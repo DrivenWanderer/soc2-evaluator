@@ -1,0 +1,37 @@
+﻿## Build results
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## IDE and tooling
+.vs/
+.idea/
+*.user
+*.userosv
+*.suo
+*.userprefs
+*.pidb
+*.booproj
+*.svclog
+
+## Test results
+TestResults/
+[Tt]est[Rr]esult*/
+
+## Generated reports and evidence
+reports/
+
+## Local secrets and environment files
+*.local
+*.secrets.*
+*.local.json
+appsettings*.local.json
+local.settings.json
+.env
+.env.*
+secrets.json
+
+## OS generated
+.DS_Store
+Thumbs.db

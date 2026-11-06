@@ -8,6 +8,8 @@ using Soc2Evaluator.Core.Adapters;
 using Soc2Evaluator.Core.Models;
 using Soc2Evaluator.Core.Services;
 using Soc2Evaluator.Reporting;
+using Soc2Evaluator.Rules;
+using Soc2Evaluator.Rules.Checks;
 
 var services = new ServiceCollection();
 
@@ -27,9 +29,13 @@ services.AddSingleton<IEvidenceHasher, EvidenceHasher>();
 services.AddSingleton<IProcessRunner, ProcessRunner>();
 services.AddSingleton<IControlMappingService, ControlMappingService>();
 
+// Rules
+services.AddSingleton<IRuleCheck, VerboseErrorsCheck>();
+
 // Adapters
 services.AddSingleton<IScannerAdapter, GitleaksAdapter>();
 services.AddSingleton<IScannerAdapter, DependencyScannerAdapter>();
+services.AddSingleton<IScannerAdapter, RulesScannerAdapter>();
 
 // Reporters
 services.AddSingleton<IReporter, MarkdownReporter>();

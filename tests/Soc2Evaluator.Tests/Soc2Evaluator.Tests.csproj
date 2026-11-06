@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\Soc2Evaluator.Reporting\Soc2Evaluator.Reporting.csproj" />
     <ProjectReference Include="..\..\src\Soc2Evaluator.Cli\Soc2Evaluator.Cli.csproj" />
     <ProjectReference Include="..\..\src\Soc2Evaluator.Adapters\Soc2Evaluator.Adapters.csproj" />
+    <ProjectReference Include="..\..\src\Soc2Evaluator.Rules\Soc2Evaluator.Rules.csproj" />
   </ItemGroup>
 
 </Project>

@@ -25,3 +25,12 @@ This file tracks all key technical decisions, owner approvals, approved dependen
   - `Microsoft.Extensions.DependencyInjection` version `10.0.0` (MIT)
   - `Microsoft.Extensions.Logging.Console` version `10.0.0` (MIT)
 - **Owner Answer:** Approved Option 1.
+
+### [2026-11-06] DEC-004: Feasibility Spike A Outcome (Roslyn / MSBuild Code Analysis)
+- **Context:** Evaluating the feasibility, safety, and cross-platform behavior of `MSBuildWorkspace` when loading arbitrary scanned solutions.
+- **Findings:**
+  - `MSBuildWorkspace` executes MSBuild targets during project evaluation, posing an arbitrary code execution vulnerability when evaluating untrusted repositories.
+  - Legacy .NET Framework projects fail to load reliably without Windows-specific Visual Studio MSBuild tools and Mono on Linux/macOS.
+  - Custom Roslyn analyzer project adds high maintenance and dependency overhead compared to wrapping mature scanners.
+- **Decision:** Approve Option 1: Drop `Soc2Evaluator.Analyzers.Roslyn` and custom `MSBuildWorkspace` semantic compilation. Rely on wrapped mature scanners (.NET CA analyzers and Semgrep) for deep semantic checks, and use safe syntax-only parsing (zero build execution) for custom gap rules.
+- **Owner Answer:** Approved Option 1.

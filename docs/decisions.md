@@ -34,3 +34,11 @@ This file tracks all key technical decisions, owner approvals, approved dependen
   - Custom Roslyn analyzer project adds high maintenance and dependency overhead compared to wrapping mature scanners.
 - **Decision:** Approve Option 1: Drop `Soc2Evaluator.Analyzers.Roslyn` and custom `MSBuildWorkspace` semantic compilation. Rely on wrapped mature scanners (.NET CA analyzers and Semgrep) for deep semantic checks, and use safe syntax-only parsing (zero build execution) for custom gap rules.
 - **Owner Answer:** Approved Option 1.
+
+### [2026-11-06] DEC-005: Feasibility Spike B Outcome (Scanner Adapter Contract & SARIF Normalization)
+- **Context:** Wrapping mature scanners (prototype using gitleaks), verifying SARIF output normalization, provenance capture, and graceful degradation when tools are missing.
+- **Findings:**
+  - Standard SARIF 2.1.0 provides a clean contract for normalizing findings across scanners (`ruleId`, `locations`, `level`, code snippet).
+  - An `IScannerAdapter` contract with `IProcessRunner` abstraction allows testable, platform-agnostic execution, provenance capture (tool version, exact arguments, start/end timestamps, exit code), and raw artifact hashing.
+  - When the scanner CLI is missing, the adapter returns `Status = "NotRun"` with specific installation guidance instead of crashing or silently passing.
+- **Decision:** Adopt `IScannerAdapter` as the universal adapter contract for all external scanners (Gitleaks, Semgrep, OSV-Scanner, Checkov, Trivy).

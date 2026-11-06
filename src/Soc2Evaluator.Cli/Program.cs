@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Soc2Evaluator.Adapters;
+using Soc2Evaluator.Adapters.Dependencies;
 using Soc2Evaluator.Adapters.Gitleaks;
 using Soc2Evaluator.Cli;
 using Soc2Evaluator.Core.Adapters;
@@ -28,6 +29,7 @@ services.AddSingleton<IControlMappingService, ControlMappingService>();
 
 // Adapters
 services.AddSingleton<IScannerAdapter, GitleaksAdapter>();
+services.AddSingleton<IScannerAdapter, DependencyScannerAdapter>();
 
 // Reporters
 services.AddSingleton<IReporter, MarkdownReporter>();

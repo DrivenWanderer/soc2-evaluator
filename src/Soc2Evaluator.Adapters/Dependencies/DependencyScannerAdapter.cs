@@ -182,6 +182,36 @@ public class DependencyScannerAdapter : IScannerAdapter
         var version = await GetVersionAsync(cancellationToken);
         var targetPath = context.TargetPath;
 
+        // If the target is a local directory that exists on disk, check if it contains any .NET projects
+        if (Directory.Exists(targetPath))
+        {
+            var hasProjects = false;
+            try
+            {
+                hasProjects = Directory.EnumerateFiles(targetPath, "*.*", SearchOption.AllDirectories)
+                    .Any(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
+                              f.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
+                              f.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase));
+            }
+            catch { /* best effort */ }
+
+            if (!hasProjects)
+            {
+                var notRunProvenance = new ToolExecutionProvenance(
+                    ToolName: "dotnet-list-package",
+                    ToolVersion: version,
+                    Arguments: [],
+                    StartTimeUtc: startTime,
+                    EndTimeUtc: DateTimeOffset.UtcNow,
+                    ExitCode: null,
+                    Status: "NotRun",
+                    ErrorMessage: "No .NET project (*.csproj) or solution (*.sln, *.slnx) files found in target."
+                );
+
+                return new AdapterExecutionResult(notRunProvenance, [], [], new Dictionary<string, byte[]>());
+            }
+        }
+
         var args = new List<string>
         {
             "list", targetPath,

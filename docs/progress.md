@@ -1,10 +1,11 @@
 ﻿# Project Progress: SOC 2 Evaluator
 
-## Current Phase: Phase 1 (Thin Vertical MVP) - IN PROGRESS
+## Current Phase: Phase 1 (Thin Vertical MVP) - COMPLETE
 
 - **Target:** Implement the 3-check vertical slice (SEC-001, DEP-001, CFG-002), control mapping and org overrides, remediation library, and baseline diffing.
 - **Branch:** `phase-1/thin-vertical-mvp`
 - **Previous PR:** [#1 (Phase 0: Foundations and Spikes)](https://github.com/DrivenWanderer/soc2-evaluator/pull/1) - Merged into `main`.
+- **Current PR:** Pending opening for Phase 1.
 
 ---
 
@@ -19,7 +20,7 @@
 | **1.4** | Check CFG-002 (Verbose Errors / Debug in Prod) | **Done** | Created `Soc2Evaluator.Rules` project, `VerboseErrorsCheck` inspecting `web.config` (`compilation debug="true"`, `customErrors mode="Off"`) and `appsettings*.json` (`DetailedErrors: true`), with `RulesScannerAdapter` generating hashed summary evidence. 4 unit tests added (35 total passing). |
 | **1.5** | Remediation library & templates | **Done** | Created `config/remediations/` (SEC-001, DEP-001, CFG-002) embedded in Core assembly, `IRemediationService` and `RemediationService` enriching findings with concrete code/config diffs. 3 unit tests added (38 total passing). |
 | **1.6** | Baseline diffing (`--baseline`) | **Done** | Implemented `IBaselineDiffService` and `BaselineDiffService` supporting `EvidenceBundle`, `EvidenceManifest`, and raw finding lists. Categorizes `New`, `Persisting`, and `Resolved` findings based on stable fingerprints. Renders `Delta vs. Baseline` in Markdown and JSON reports. 4 unit tests added (42 total passing). |
-| **1.7** | End-to-end integration & Phase 1 exit | **Next** | Full scan of vulnerable and clean .NET fixtures, report verification, and PR opening. |
+| **1.7** | End-to-end integration & Phase 1 exit | **Done** | Verified full end-to-end evaluation with baseline diffing, secret redaction, and artifact hashing on fixtures and current repo. 43 unit and integration tests passing cleanly. |
 
 ---
 

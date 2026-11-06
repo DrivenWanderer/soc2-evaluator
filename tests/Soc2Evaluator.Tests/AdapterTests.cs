@@ -2,6 +2,7 @@
 using Soc2Evaluator.Adapters;
 using Soc2Evaluator.Adapters.Gitleaks;
 using Soc2Evaluator.Adapters.Sarif;
+using Soc2Evaluator.Core.Adapters;
 using Soc2Evaluator.Core.Models;
 using Soc2Evaluator.Core.Services;
 using Xunit;

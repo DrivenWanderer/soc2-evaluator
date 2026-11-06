@@ -1,6 +1,6 @@
 ﻿using Soc2Evaluator.Core.Models;
 
-namespace Soc2Evaluator.Adapters;
+namespace Soc2Evaluator.Core.Adapters;
 
 public record AdapterExecutionContext(
     string TargetPath,

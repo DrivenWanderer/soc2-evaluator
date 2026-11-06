@@ -42,7 +42,7 @@ public class AdapterTests
                       "startLine": 12,
                       "startColumn": 15,
                       "snippet": {
-                        "text": "AKIAIOSFODNN7EXAMPLE"
+                        "text": "DUMMY_API_KEY_TOKEN_1234567890"
                       }
                     }
                   }
@@ -64,7 +64,8 @@ public class AdapterTests
         Assert.Single(findings);
 
         var finding = findings[0];
-        Assert.Equal("generic-api-key", finding.RuleId);
+        Assert.Equal("SEC-001", finding.RuleId);
+        Assert.Contains("generic-api-key", finding.Title);
         Assert.Equal(Severity.High, finding.Severity);
         Assert.Equal(FindingCategory.Code, finding.Category);
         Assert.Equal("config/secrets.json", finding.Location?.FilePath);
@@ -72,7 +73,7 @@ public class AdapterTests
         Assert.Equal("gitleaks", finding.SourceName);
         Assert.Equal("8.18.2", finding.SourceVersion);
         Assert.Contains("***[REDACTED]***", finding.RedactedEvidence);
-        Assert.DoesNotContain("AKIAIOSFODNN7EXAMPLE", finding.RedactedEvidence);
+        Assert.DoesNotContain("DUMMY_API_KEY_TOKEN_1234567890", finding.RedactedEvidence);
         Assert.NotNull(finding.Fingerprint);
     }
 
@@ -81,7 +82,7 @@ public class AdapterTests
     {
         var scrubbed = SarifParser.ScrubSarif(SampleSarif);
 
-        Assert.DoesNotContain("AKIAIOSFODNN7EXAMPLE", scrubbed);
+        Assert.DoesNotContain("DUMMY_API_KEY_TOKEN_1234567890", scrubbed);
         Assert.Contains("***[REDACTED]***", scrubbed);
     }
 
@@ -129,6 +130,7 @@ public class AdapterTests
         Assert.Equal(0, result.Provenance.ExitCode);
         Assert.Equal("8.18.2", result.Provenance.ToolVersion);
         Assert.Single(result.Findings);
+        Assert.Equal("SEC-001", result.Findings[0].RuleId);
         Assert.Single(result.Artifacts);
         Assert.Equal("gitleaks.sarif", result.Artifacts[0].Name);
         Assert.NotNull(result.Artifacts[0].Sha256Hash);
@@ -137,8 +139,58 @@ public class AdapterTests
         Assert.True(result.RawArtifactBytes.ContainsKey("gitleaks.sarif"));
         var artifactBytes = result.RawArtifactBytes["gitleaks.sarif"];
         var artifactText = Encoding.UTF8.GetString(artifactBytes);
-        Assert.DoesNotContain("AKIAIOSFODNN7EXAMPLE", artifactText);
+        Assert.DoesNotContain("DUMMY_API_KEY_TOKEN_1234567890", artifactText);
         Assert.Contains("***[REDACTED]***", artifactText);
+    }
+
+    [Fact]
+    public void Gitleaks_SeededSecretsTest_VerifiesMaskingAndSecrecyRequirements()
+    {
+        // Secrecy requirement verification: seeded secrets must NEVER appear in output
+        const string rawSecret = "dummy_seeded_secret_token_val_987654321";
+        var sarifWithSecret = $$"""
+        {
+          "version": "2.1.0",
+          "runs": [
+            {
+              "tool": { "driver": { "name": "gitleaks", "version": "8.18.2" } },
+              "results": [
+                {
+                  "ruleId": "mock-api-key",
+                  "level": "error",
+                  "message": { "text": "Mock API Key detected" },
+                  "locations": [
+                    {
+                      "physicalLocation": {
+                        "artifactLocation": { "uri": "tests/fixtures/vulnerable-app/appsettings.json" },
+                        "region": {
+                          "startLine": 11,
+                          "startColumn": 25,
+                          "snippet": { "text": "{{rawSecret}}" }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        """;
+
+        var (findings, _) = SarifParser.Parse(sarifWithSecret, "gitleaks", "SEC-001", ["CC6.1"]);
+        Assert.Single(findings);
+        var finding = findings[0];
+
+        // Finding's redacted evidence must not contain the raw secret
+        Assert.DoesNotContain(rawSecret, finding.RedactedEvidence);
+        Assert.DoesNotContain(rawSecret, finding.Title);
+        Assert.DoesNotContain(rawSecret, finding.RiskExplanation);
+
+        // Artifact scrub must sanitize the raw secret completely
+        var scrubbedSarif = SarifParser.ScrubSarif(sarifWithSecret);
+        Assert.DoesNotContain(rawSecret, scrubbedSarif);
+        Assert.Contains("***[REDACTED]***", scrubbedSarif);
     }
 
     private class MockProcessRunner : IProcessRunner

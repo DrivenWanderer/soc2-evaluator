@@ -14,8 +14,8 @@
 |---|---|---|---|
 | **0.1-0.8** | Phase 0 Foundations, Spikes & PR #1 | **Done** | Core solution, domain models, provenance & evidence hashing, PR review fixes, and Spikes A/B complete. Merged into `main`. |
 | **1.1** | Control mapping engine & org config loader | **Done** | `config/control-mapping.default.yml` embedded in Core; `IControlMappingService` and `ControlMappingService` supporting default mappings and `--org-config` YAML overrides (org control IDs, severity overrides, disabled rules with justifications). 6 unit tests passing (26 total). |
-| **1.2** | Check SEC-001 (Hardcoded Secrets via Gitleaks) | **Next** | Full Gitleaks adapter integration with control mapping, test fixtures (positive/negative), and verification of secret scrubbing. |
-| **1.3** | Check DEP-001 (Known-Vulnerable Packages Adapter) | Pending | Dependency scanner adapter (`osv-scanner` / `dotnet list package --vulnerable`), normalized to CC7.1, test fixtures. |
+| **1.2** | Check SEC-001 (Hardcoded Secrets via Gitleaks) | **Done** | Gitleaks SARIF normalization mapping to `SEC-001`, verified against test fixtures (`tests/fixtures/vulnerable-app`, `tests/fixtures/clean-app`), automated test asserting seeded secrets never leak raw into findings or SARIF artifacts. 27 unit tests passing. |
+| **1.3** | Check DEP-001 (Known-Vulnerable Packages Adapter) | **Next** | Dependency scanner adapter (`osv-scanner` / `dotnet list package --vulnerable`), normalized to CC7.1, test fixtures. |
 | **1.4** | Check CFG-002 (Verbose Errors / Debug in Prod) | Pending | `Soc2Evaluator.Rules` project with custom `web.config` and `appsettings*.json` rules targeting CC6.1 and CC7.2. |
 | **1.5** | Remediation library & templates | Pending | `config/remediations/` templates with concrete code/config diffs wired into findings. |
 | **1.6** | Baseline diffing (`--baseline`) | Pending | Run-to-run fingerprint diffing categorizing `New`, `Resolved`, and `Persisting` findings in bundle and report. |

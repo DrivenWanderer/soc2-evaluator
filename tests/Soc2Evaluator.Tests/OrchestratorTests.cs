@@ -9,13 +9,14 @@ namespace Soc2Evaluator.Tests;
 public class OrchestratorTests
 {
     private readonly IEvidenceHasher _hasher = new EvidenceHasher();
+    private readonly IControlMappingService _mappingService = new ControlMappingService();
 
     [Fact]
     public async Task Orchestrator_CleanScan_DoesNotInjectFakeFindings()
     {
         var mockRunner = new MockRunner(exists: false);
         var gitleaksAdapter = new GitleaksAdapter(mockRunner, _hasher);
-        var orchestrator = new EvaluationOrchestrator([gitleaksAdapter], _hasher);
+        var orchestrator = new EvaluationOrchestrator([gitleaksAdapter], _hasher, _mappingService);
 
         var request = new EvaluationRequest(
             TargetPath: ".",
@@ -68,7 +69,7 @@ public class OrchestratorTests
         };
 
         var gitleaksAdapter = new GitleaksAdapter(mockRunner, _hasher);
-        var orchestrator = new EvaluationOrchestrator([gitleaksAdapter], _hasher);
+        var orchestrator = new EvaluationOrchestrator([gitleaksAdapter], _hasher, _mappingService);
 
         var request = new EvaluationRequest(
             TargetPath: ".",

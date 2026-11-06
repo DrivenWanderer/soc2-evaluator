@@ -1,0 +1,34 @@
+﻿organization: "Default"
+version: "1.0"
+description: "Default SOC 2 Trust Services Criteria (TSC) control mappings for technical checks. All mappings are judgment calls and should be confirmed with your SOC 2 audit team."
+mappings:
+  - rule_id: "SEC-001"
+    title: "Hardcoded secrets / credentialed connection strings"
+    description: "Detects plaintext credentials, API keys, tokens, or connection strings in source code and configuration files."
+    tsc_criteria:
+      - "CC6.1"
+    default_severity: "High"
+    category: "Code"
+    enabled: true
+    notes: "Default mapping, confirm with auditor. Maps to logical access controls protecting credentials."
+
+  - rule_id: "DEP-001"
+    title: "Known-vulnerable packages (direct and transitive)"
+    description: "Identifies third-party dependencies with published CVEs or security advisories."
+    tsc_criteria:
+      - "CC7.1"
+    default_severity: "High"
+    category: "Configuration"
+    enabled: true
+    notes: "Default mapping, confirm with auditor. Maps to vulnerability management and configuration monitoring."
+
+  - rule_id: "CFG-002"
+    title: "Verbose errors / debug enabled in production config"
+    description: "Detects stack trace exposure, detailed error disclosures, or debug flags enabled in production application configuration."
+    tsc_criteria:
+      - "CC6.1"
+      - "CC7.2"
+    default_severity: "Medium"
+    category: "Configuration"
+    enabled: true
+    notes: "Default mapping, confirm with auditor. Maps to data protection and monitoring error anomaly detection."

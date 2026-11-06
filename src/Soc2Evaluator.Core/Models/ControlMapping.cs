@@ -4,14 +4,19 @@ public record ControlMappingEntry(
     string RuleId,
     IReadOnlyList<string> TscCriteria,
     string? OrgControlId = null,
+    string? Title = null,
     string? Description = null,
+    FindingCategory? Category = null,
+    Severity? DefaultSeverity = null,
+    Severity? OverrideSeverity = null,
     bool Enabled = true,
-    string? OverrideSeverity = null,
-    string? Justification = null
+    string? Justification = null,
+    string? Notes = null
 );
 
 public record ControlMappingConfig(
-    string OrganizationName,
+    string Organization,
     string Version,
+    string? Description,
     IReadOnlyList<ControlMappingEntry> Mappings
 );

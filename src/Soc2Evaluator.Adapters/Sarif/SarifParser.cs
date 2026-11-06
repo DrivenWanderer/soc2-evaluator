@@ -48,17 +48,25 @@ public static class SarifParser
             var index = 1;
             foreach (var result in results.EnumerateArray())
             {
-                var ruleId = defaultRuleId;
+                string? scannerRuleId = null;
                 if (result.TryGetProperty("ruleId", out var ruleIdProp) && !string.IsNullOrWhiteSpace(ruleIdProp.GetString()))
                 {
-                    ruleId = ruleIdProp.GetString()!;
+                    scannerRuleId = ruleIdProp.GetString();
                 }
+
+                var ruleId = !string.IsNullOrWhiteSpace(defaultRuleId)
+                    ? defaultRuleId
+                    : (scannerRuleId ?? "UNKNOWN");
 
                 var message = "Security finding detected";
                 if (result.TryGetProperty("message", out var msgProp) && msgProp.TryGetProperty("text", out var textProp))
                 {
                     message = textProp.GetString() ?? message;
                 }
+
+                var title = !string.IsNullOrWhiteSpace(scannerRuleId) && scannerRuleId != ruleId
+                    ? $"{message} ({scannerRuleId})"
+                    : message;
 
                 var severity = Severity.Medium;
                 if (result.TryGetProperty("level", out var levelProp))
@@ -110,7 +118,7 @@ public static class SarifParser
                 findings.Add(new Finding(
                     Id: findingId,
                     RuleId: ruleId,
-                    Title: message.Length > 80 ? message[..77] + "..." : message,
+                    Title: title.Length > 100 ? title[..97] + "..." : title,
                     SourceName: toolName,
                     SourceVersion: toolVersion,
                     TscCriteria: defaultTscCriteria,
@@ -158,18 +166,17 @@ public static class SarifParser
         {
             if (obj.TryGetPropertyValue("snippet", out var snipNode) && snipNode is JsonObject snipObj)
             {
-                if (snipObj.TryGetPropertyValue("text", out var textNode) && textNode != null)
+                if (snipObj.ContainsKey("text"))
                 {
-                    var text = textNode.GetValue<string>();
-                    snipObj["text"] = RedactSensitiveContent(text);
+                    snipObj["text"] = "***[REDACTED]***";
                 }
             }
 
-            foreach (var prop in obj.ToList())
+            foreach (var property in obj)
             {
-                if (prop.Value != null)
+                if (property.Value != null)
                 {
-                    ScrubSnippetsRecursive(prop.Value);
+                    ScrubSnippetsRecursive(property.Value);
                 }
             }
         }
@@ -185,13 +192,21 @@ public static class SarifParser
         }
     }
 
-    public static string RedactSensitiveContent(string text)
+    private static string RedactSensitiveContent(string snippet)
     {
-        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+        if (string.IsNullOrWhiteSpace(snippet))
+        {
+            return "***[REDACTED]***";
+        }
 
-        // Basic mask for secrets snippets: retain first 3 chars if >= 8, mask remainder
-        if (text.Length <= 4) return "****";
-        var prefix = text[..Math.Min(3, text.Length)];
+        // If the snippet is short, fully redact
+        if (snippet.Length <= 8)
+        {
+            return "***[REDACTED]***";
+        }
+
+        // Keep first 3 chars, mask the rest
+        var prefix = snippet[..3];
         return $"{prefix}***[REDACTED]***";
     }
 }

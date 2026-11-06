@@ -1,10 +1,11 @@
 ﻿# Project Progress: SOC 2 Evaluator
 
-## Current Phase: Phase 0 (Foundations and Feasibility Spikes) - COMPLETE
+## Current Phase: Phase 1 (Thin Vertical MVP) - COMPLETE
 
-- **Target:** Establish core project skeleton, domain models, provenance & evidence hashing, basic reporters, and run feasibility Spikes A and B.
-- **Branch:** `phase-0/foundations-and-spikes`
-- **Pull Request:** [#1](https://github.com/DrivenWanderer/soc2-evaluator/pull/1)
+- **Target:** Implement the 3-check vertical slice (SEC-001, DEP-001, CFG-002), control mapping and org overrides, remediation library, and baseline diffing.
+- **Branch:** `phase-1/thin-vertical-mvp`
+- **Previous PR:** [#1 (Phase 0: Foundations and Spikes)](https://github.com/DrivenWanderer/soc2-evaluator/pull/1) - Merged into `main`.
+- **Current PR:** Pending opening for Phase 1.
 
 ---
 
@@ -12,24 +13,14 @@
 
 | Task ID | Task Description | Status | Deliverable & Verification |
 |---|---|---|---|
-| **0.1** | Git repo initialization on `main` | **Done** | `main` branch initialized with `README.md`, `.gitignore`, `LICENSE` (MIT), and `docs/plan.md`. Verified clean and pushed to GitHub `DrivenWanderer/soc2-evaluator`. |
-| **0.2** | Branching & solution skeleton | **Done** | Feature branch `phase-0/foundations-and-spikes`, `Soc2Evaluator.slnx`, `Directory.Build.props`, projects (`Cli`, `Core`, `Reporting`, `Tests`), and persistent docs (`progress.md`, `decisions.md`). Verified `dotnet build` and `dotnet test` pass cleanly with nullable enabled and warnings as errors. |
-| **0.3** | CLI host, DI, & logging | **Done** | `System.CommandLine` host with DI container and logging. Implemented root, `scan`, and `trend` commands matching Plan Section 8. Verified `--help` and `scan --help` print correctly; unit tests pass. |
-| **0.4** | Core models, provenance & evidence hashing | **Done** | Domain models (`EvidenceBundle`, `EvidenceManifest`, `ToolExecutionProvenance`, `Finding`, `ControlMappingEntry`) and `EvidenceHasher` service implementing SHA-256 manifest signing, artifact byte-hash verification, and tamper detection. Unit tests pass. |
-| **0.5** | Markdown & JSON reporters | **Done** | `MarkdownReporter` (with disclaimer, executive summary, coverage table, findings, and provenance) and `JsonReporter` with `ReporterFactory`. HTML/markdown escaping and accurate coverage table reporting implemented. |
-| **0.6** | Spike A: Roslyn/MSBuild feasibility spike | **Done** | Evaluated safety and cross-platform behavior of `MSBuildWorkspace`. Documented untrusted code execution risks and compatibility hurdles. Owner approved Option 1: drop custom `MSBuildWorkspace` project; rely on Semgrep/.NET CA analyzers for semantic checks and syntax-only parsing for gap checks (DEC-004). |
-| **0.7** | Spike B: Scanner adapter contract | **Done** | `IScannerAdapter` abstraction, `IProcessRunner`, `SarifParser` for SARIF 2.1.0 normalization, and `GitleaksAdapter` prototype. Verified graceful degradation when tool is missing and provenance capture. |
-| **0.8** | End-to-end integration & Phase 0 exit | **Done** | `soc2eval scan .` end-to-end execution producing hashed, signed evidence bundle (`evidence-bundle.json`), standalone checksum (`manifest.sha256`), and reports (`report.md`, `findings.json`). Full test suite (20 unit tests) passes cleanly. |
-
----
-
-### PR #1 Review Updates (DEC-007)
-- **Artifact Secrecy:** Added `SarifParser.ScrubSarif` to scrub raw secret snippet text before persisting SARIF artifacts to disk.
-- **Clean Scan Accuracy:** Removed hardcoded sample finding injection from `EvaluationOrchestrator` so clean scans report 0 findings accurately.
-- **Format Validation & CI Gating:** Reject unsupported formats (e.g. `sarif`) and enforce non-zero exit code (exit 2) when `--fail-on` threshold is breached.
-- **Accurate Coverage Table:** Status derived directly from execution results (`Evaluated`, `Not Run`, `Failed`).
-- **Markdown Escaping:** Added `MarkdownSanitizer` escaping HTML tags and table pipes in untrusted scanner output.
-- **Integrity Clarification:** Updated wording from "tamper-evident" to "checksum-backed integrity record", added `VerifyArtifacts` byte-hash validation, and save standalone `manifest.sha256`.
+| **0.1-0.8** | Phase 0 Foundations, Spikes & PR #1 | **Done** | Core solution, domain models, provenance & evidence hashing, PR review fixes, and Spikes A/B complete. Merged into `main`. |
+| **1.1** | Control mapping engine & org config loader | **Done** | `config/control-mapping.default.yml` embedded in Core; `IControlMappingService` and `ControlMappingService` supporting default mappings and `--org-config` YAML overrides (org control IDs, severity overrides, disabled rules with justifications). 6 unit tests passing (26 total). |
+| **1.2** | Check SEC-001 (Hardcoded Secrets via Gitleaks) | **Done** | Gitleaks SARIF normalization mapping to `SEC-001`, verified against test fixtures (`tests/fixtures/vulnerable-app`, `tests/fixtures/clean-app`), automated test asserting seeded secrets never leak raw into findings or SARIF artifacts. 27 unit tests passing. |
+| **1.3** | Check DEP-001 (Known-Vulnerable Packages Adapter) | **Done** | Implemented `DependencyScannerAdapter` implementing 3-tier discovery cascade (`osv-scanner` -> `dotnet list package --vulnerable --include-transitive --format json` -> graceful degradation `NotRun`). Normalized to `DEP-001` (CC7.1). 4 unit tests added (31 total passing). |
+| **1.4** | Check CFG-002 (Verbose Errors / Debug in Prod) | **Done** | Created `Soc2Evaluator.Rules` project, `VerboseErrorsCheck` inspecting `web.config` (`compilation debug="true"`, `customErrors mode="Off"`) and `appsettings*.json` (`DetailedErrors: true`), with `RulesScannerAdapter` generating hashed summary evidence. 4 unit tests added (35 total passing). |
+| **1.5** | Remediation library & templates | **Done** | Created `config/remediations/` (SEC-001, DEP-001, CFG-002) embedded in Core assembly, `IRemediationService` and `RemediationService` enriching findings with concrete code/config diffs. 3 unit tests added (38 total passing). |
+| **1.6** | Baseline diffing (`--baseline`) | **Done** | Implemented `IBaselineDiffService` and `BaselineDiffService` supporting `EvidenceBundle`, `EvidenceManifest`, and raw finding lists. Categorizes `New`, `Persisting`, and `Resolved` findings based on stable fingerprints. Renders `Delta vs. Baseline` in Markdown and JSON reports. 4 unit tests added (42 total passing). |
+| **1.7** | End-to-end integration & Phase 1 exit | **Done** | Verified full end-to-end evaluation with baseline diffing, secret redaction, and artifact hashing on fixtures and current repo. 43 unit and integration tests passing cleanly. |
 
 ---
 
@@ -37,12 +28,4 @@
 - None.
 
 ### Deviations from Plan
-- Per Spike A decision (DEC-004 approved by owner), `Soc2Evaluator.Analyzers.Roslyn` is dropped to prevent untrusted code execution during MSBuild project load.
-
-### Proposed Starting Point for Phase 1
-- Begin Phase 1 (Thin vertical MVP):
-  - Check SEC-001 (full gitleaks adapter integration and test fixtures).
-  - Check DEP-001 (OSV / `dotnet list package --vulnerable` adapter).
-  - Check CFG-002 (custom `web.config` / `appsettings.json` rule).
-  - Default control mapping and org override loading.
-  - Baseline diffing (`--baseline`).
+- Per Spike A decision (DEC-004 approved by owner), `Soc2Evaluator.Analyzers.Roslyn` is dropped to prevent untrusted code execution during MSBuild project load. Custom gap rules use safe syntax-only parsing in `Soc2Evaluator.Rules`.

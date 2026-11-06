@@ -1,12 +1,15 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Soc2Evaluator.Adapters;
+using Soc2Evaluator.Adapters.Dependencies;
 using Soc2Evaluator.Adapters.Gitleaks;
 using Soc2Evaluator.Cli;
 using Soc2Evaluator.Core.Adapters;
 using Soc2Evaluator.Core.Models;
 using Soc2Evaluator.Core.Services;
 using Soc2Evaluator.Reporting;
+using Soc2Evaluator.Rules;
+using Soc2Evaluator.Rules.Checks;
 
 var services = new ServiceCollection();
 
@@ -24,9 +27,17 @@ services.AddLogging(builder =>
 // Core services
 services.AddSingleton<IEvidenceHasher, EvidenceHasher>();
 services.AddSingleton<IProcessRunner, ProcessRunner>();
+services.AddSingleton<IControlMappingService, ControlMappingService>();
+services.AddSingleton<IRemediationService, RemediationService>();
+services.AddSingleton<IBaselineDiffService, BaselineDiffService>();
+
+// Rules
+services.AddSingleton<IRuleCheck, VerboseErrorsCheck>();
 
 // Adapters
 services.AddSingleton<IScannerAdapter, GitleaksAdapter>();
+services.AddSingleton<IScannerAdapter, DependencyScannerAdapter>();
+services.AddSingleton<IScannerAdapter, RulesScannerAdapter>();
 
 // Reporters
 services.AddSingleton<IReporter, MarkdownReporter>();
@@ -50,6 +61,14 @@ var rootCommand = CommandLineBuilder.BuildRootCommand(async (scanOptions, cancel
     logger.LogInformation("Target: {Target}", Path.GetFullPath(scanOptions.Target));
     logger.LogInformation("Criteria in scope: {Criteria}", string.Join(", ", scanOptions.Criteria));
     logger.LogInformation("Output destination: {OutputPath}", Path.GetFullPath(scanOptions.OutputPath));
+    if (!string.IsNullOrWhiteSpace(scanOptions.OrgConfigPath))
+    {
+        logger.LogInformation("Organization configuration: {OrgConfig}", Path.GetFullPath(scanOptions.OrgConfigPath));
+    }
+    if (!string.IsNullOrWhiteSpace(scanOptions.BaselinePath))
+    {
+        logger.LogInformation("Baseline findings comparison: {BaselinePath}", Path.GetFullPath(scanOptions.BaselinePath));
+    }
 
     // Validate formats
     var supportedFormats = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "md", "json" };
@@ -85,7 +104,9 @@ var rootCommand = CommandLineBuilder.BuildRootCommand(async (scanOptions, cancel
         Formats: scanOptions.Formats,
         CommitSha: commitSha,
         FailOnSeverity: scanOptions.FailOnSeverity,
-        Offline: scanOptions.Offline
+        Offline: scanOptions.Offline,
+        OrgConfigPath: scanOptions.OrgConfigPath,
+        BaselinePath: scanOptions.BaselinePath
     );
 
     var bundle = await orchestrator.RunEvaluationAsync(request, cancellationToken);
@@ -100,70 +121,64 @@ var rootCommand = CommandLineBuilder.BuildRootCommand(async (scanOptions, cancel
     // Save scrubbed evidence artifacts
     foreach (var (filename, bytes) in bundle.RawArtifactBytes)
     {
-        var artifactFile = Path.Combine(evidenceDir, filename);
-        await File.WriteAllBytesAsync(artifactFile, bytes, cancellationToken);
-        logger.LogInformation("Saved evidence artifact: {File}", artifactFile);
+        var artifactPath = Path.Combine(evidenceDir, filename);
+        await File.WriteAllBytesAsync(artifactPath, bytes, cancellationToken);
+        logger.LogInformation("Saved scrubbed evidence artifact: {ArtifactPath}", artifactPath);
     }
 
-    // Render requested reports
+    // Generate selected report formats
+    var reportOutputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     foreach (var format in scanOptions.Formats)
     {
-        try
+        var reporter = reporterFactory.GetReporter(format);
+        if (reporter != null)
         {
-            var reporter = reporterFactory.GetReporter(format);
             var reportContent = await reporter.RenderAsync(manifest, cancellationToken);
             var reportPath = Path.Combine(outDir, reporter.OutputFileName);
             await File.WriteAllTextAsync(reportPath, reportContent, cancellationToken);
-            logger.LogInformation("Generated report [{Format}]: {Path}", format, reportPath);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to render report for format: {Format}", format);
-            return 1;
+            reportOutputs[reporter.OutputFileName] = reportContent;
+            logger.LogInformation("Report generated: {ReportPath}", reportPath);
         }
     }
 
-    // Generate manifest evidence-bundle.json
-    var bundleReporter = reporterFactory.GetReporter("json");
-    var manifestContent = await bundleReporter.RenderAsync(manifest, cancellationToken);
-    var manifestPath = Path.Combine(outDir, "evidence-bundle.json");
-    await File.WriteAllTextAsync(manifestPath, manifestContent, cancellationToken);
-    logger.LogInformation("Saved checksum-backed evidence bundle manifest: {Path}", manifestPath);
+    // Save raw evidence bundle JSON and standalone manifest.sha256
+    var bundleJsonPath = Path.Combine(outDir, "evidence-bundle.json");
+    var bundleJson = System.Text.Json.JsonSerializer.Serialize(bundle, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+    await File.WriteAllTextAsync(bundleJsonPath, bundleJson, cancellationToken);
+    logger.LogInformation("Evidence bundle saved: {BundlePath}", bundleJsonPath);
 
-    // Save external checksum file for separately trusted verification
     if (!string.IsNullOrWhiteSpace(manifest.ManifestSha256))
     {
-        var checksumFilePath = Path.Combine(outDir, "manifest.sha256");
-        await File.WriteAllTextAsync(checksumFilePath, $"{manifest.ManifestSha256} *evidence-bundle.json\n", cancellationToken);
-        logger.LogInformation("Saved standalone checksum record: {Path}", checksumFilePath);
+        var shaPath = Path.Combine(outDir, "manifest.sha256");
+        await File.WriteAllTextAsync(shaPath, $"{manifest.ManifestSha256}  evidence-bundle.json\n", cancellationToken);
+        logger.LogInformation("Manifest checksum saved: {ChecksumPath}", shaPath);
     }
 
-    logger.LogInformation("================================================================================");
-    logger.LogInformation("Scan completed successfully.");
-    logger.LogInformation("Run ID: {RunId}", manifest.RunId);
-    logger.LogInformation("Evidence Manifest SHA-256 Checksum: {Hash}", manifest.ManifestSha256);
-    logger.LogInformation("Total findings evaluated: {Count}", manifest.Findings.Count);
-    logger.LogInformation("================================================================================");
+    logger.LogInformation("Evaluation completed. Total findings: {FindingsCount}", manifest.Findings.Count);
 
-    // Evaluate CI Gating threshold (--fail-on)
+    // CI Gating evaluation (--fail-on)
     if (!string.IsNullOrWhiteSpace(scanOptions.FailOnSeverity))
     {
-        if (!Enum.TryParse<Severity>(scanOptions.FailOnSeverity, ignoreCase: true, out var threshold))
+        if (Enum.TryParse<Severity>(scanOptions.FailOnSeverity, ignoreCase: true, out var threshold))
         {
-            logger.LogError("Invalid --fail-on severity threshold '{Threshold}'. Valid values: Critical, High, Medium, Low, Informational.", scanOptions.FailOnSeverity);
-            return 1;
+            var violatingFindings = manifest.Findings.Where(f => f.Severity >= threshold).ToList();
+            if (violatingFindings.Count > 0)
+            {
+                logger.LogError(
+                    "CI Gate Failed: {Count} finding(s) met or exceeded the --fail-on threshold of {Threshold}.",
+                    violatingFindings.Count,
+                    threshold
+                );
+                return 2;
+            }
         }
-
-        var gatingFailures = manifest.Findings.Where(f => f.Severity >= threshold).ToList();
-        if (gatingFailures.Count > 0)
+        else
         {
-            logger.LogError("CI Gating Failure: {Count} finding(s) met or exceeded severity threshold '{Threshold}'.", gatingFailures.Count, threshold);
-            return 2;
+            logger.LogWarning("Unrecognized --fail-on severity threshold: '{Threshold}'. Gate check skipped.", scanOptions.FailOnSeverity);
         }
     }
 
     return 0;
 });
 
-var parseResult = rootCommand.Parse(args);
-return await parseResult.InvokeAsync();
+return await rootCommand.Parse(args).InvokeAsync();

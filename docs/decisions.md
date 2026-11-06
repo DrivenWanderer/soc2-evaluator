@@ -42,3 +42,11 @@ This file tracks all key technical decisions, owner approvals, approved dependen
   - An `IScannerAdapter` contract with `IProcessRunner` abstraction allows testable, platform-agnostic execution, provenance capture (tool version, exact arguments, start/end timestamps, exit code), and raw artifact hashing.
   - When the scanner CLI is missing, the adapter returns `Status = "NotRun"` with specific installation guidance instead of crashing or silently passing.
 - **Decision:** Adopt `IScannerAdapter` as the universal adapter contract for all external scanners (Gitleaks, Semgrep, OSV-Scanner, Checkov, Trivy).
+
+### [2026-11-06] DEC-006: Tool Availability, Discovery Cascade, and Native Fallbacks
+- **Context:** Preventing developer machine tool installation constraints (e.g. absence of Docker or specific external scanners) from blocking assessments.
+- **Decision:**
+  - Adopt a deterministic 3-level discovery cascade: (1) Native local binary in PATH / user cache -> (2) In-box .NET SDK / native BCL fallback -> (3) Graceful degradation (`NotRun` with exact install guidance in report).
+  - Docker and container runtimes are strictly optional convenience layers (never required).
+  - Explicit flags (`--sandbox`, `--offline`) maintain strict predictability and prevent silent fallback behavior.
+- **Owner Answer:** Approved.

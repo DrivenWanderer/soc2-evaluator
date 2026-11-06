@@ -8,15 +8,18 @@ public class EvaluationOrchestrator : IEvaluationOrchestrator
     private readonly IEnumerable<IScannerAdapter> _adapters;
     private readonly IEvidenceHasher _hasher;
     private readonly IControlMappingService _mappingService;
+    private readonly IRemediationService? _remediationService;
 
     public EvaluationOrchestrator(
         IEnumerable<IScannerAdapter> adapters,
         IEvidenceHasher hasher,
-        IControlMappingService mappingService)
+        IControlMappingService mappingService,
+        IRemediationService? remediationService = null)
     {
         _adapters = adapters;
         _hasher = hasher;
         _mappingService = mappingService;
+        _remediationService = remediationService;
     }
 
     public async Task<EvidenceBundle> RunEvaluationAsync(EvaluationRequest request, CancellationToken cancellationToken = default)
@@ -54,7 +57,10 @@ public class EvaluationOrchestrator : IEvaluationOrchestrator
             }
         }
 
-        var enrichedFindings = allFindings.Select(_mappingService.EnrichFinding).ToList();
+        var enrichedFindings = allFindings
+            .Select(_mappingService.EnrichFinding)
+            .Select(f => _remediationService?.EnrichWithRemediation(f) ?? f)
+            .ToList();
 
         var unsignedManifest = new EvidenceManifest(
             RunId: runId,

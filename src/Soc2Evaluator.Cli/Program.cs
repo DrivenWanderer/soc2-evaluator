@@ -28,6 +28,7 @@ services.AddLogging(builder =>
 services.AddSingleton<IEvidenceHasher, EvidenceHasher>();
 services.AddSingleton<IProcessRunner, ProcessRunner>();
 services.AddSingleton<IControlMappingService, ControlMappingService>();
+services.AddSingleton<IRemediationService, RemediationService>();
 
 // Rules
 services.AddSingleton<IRuleCheck, VerboseErrorsCheck>();

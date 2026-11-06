@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="..\..\config\control-mapping.default.yml" Link="Resources\control-mapping.default.yml" />
+    <EmbeddedResource Include="..\..\config\remediations\*.md" Link="Resources\Remediations\%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

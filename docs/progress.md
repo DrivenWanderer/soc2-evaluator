@@ -17,8 +17,8 @@
 | **1.2** | Check SEC-001 (Hardcoded Secrets via Gitleaks) | **Done** | Gitleaks SARIF normalization mapping to `SEC-001`, verified against test fixtures (`tests/fixtures/vulnerable-app`, `tests/fixtures/clean-app`), automated test asserting seeded secrets never leak raw into findings or SARIF artifacts. 27 unit tests passing. |
 | **1.3** | Check DEP-001 (Known-Vulnerable Packages Adapter) | **Done** | Implemented `DependencyScannerAdapter` implementing 3-tier discovery cascade (`osv-scanner` -> `dotnet list package --vulnerable --include-transitive --format json` -> graceful degradation `NotRun`). Normalized to `DEP-001` (CC7.1). 4 unit tests added (31 total passing). |
 | **1.4** | Check CFG-002 (Verbose Errors / Debug in Prod) | **Done** | Created `Soc2Evaluator.Rules` project, `VerboseErrorsCheck` inspecting `web.config` (`compilation debug="true"`, `customErrors mode="Off"`) and `appsettings*.json` (`DetailedErrors: true`), with `RulesScannerAdapter` generating hashed summary evidence. 4 unit tests added (35 total passing). |
-| **1.5** | Remediation library & templates | **Next** | `config/remediations/` templates with concrete code/config diffs wired into findings. |
-| **1.6** | Baseline diffing (`--baseline`) | Pending | Run-to-run fingerprint diffing categorizing `New`, `Resolved`, and `Persisting` findings in bundle and report. |
+| **1.5** | Remediation library & templates | **Done** | Created `config/remediations/` (SEC-001, DEP-001, CFG-002) embedded in Core assembly, `IRemediationService` and `RemediationService` enriching findings with concrete code/config diffs. 3 unit tests added (38 total passing). |
+| **1.6** | Baseline diffing (`--baseline`) | **Next** | Run-to-run fingerprint diffing categorizing `New`, `Resolved`, and `Persisting` findings in bundle and report. |
 | **1.7** | End-to-end integration & Phase 1 exit | Pending | Full scan of vulnerable and clean .NET fixtures, report verification, and PR opening. |
 
 ---

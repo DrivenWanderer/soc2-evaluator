@@ -1,0 +1,19 @@
+﻿# Architecture & Project Decisions
+
+This file tracks all key technical decisions, owner approvals, approved dependencies/tools, and feasibility spike results.
+
+---
+
+### [2026-11-06] DEC-001: Repository Metadata and License
+- **Context:** Initializing the public GitHub repository.
+- **Decision:**
+  - Repo name: `soc2-evaluator`
+  - Description: `SOC 2 readiness assessment and evidence collection orchestrator for .NET solutions`
+  - License: MIT License (Copyright 2026 Michael Perkins)
+  - Remote: `https://github.com/DrivenWanderer/soc2-evaluator.git`
+- **Owner Answer:** Approved.
+
+### [2026-11-06] DEC-002: Target .NET Version and Solution Format
+- **Context:** .NET 10 LTS environment check (`10.0.403` at `C:\Users\perki\.dotnet`).
+- **Decision:** Target `net10.0` with `global.json` pinned to `10.0.403`. Solution uses standard .NET 10 `Soc2Evaluator.slnx` format with `Directory.Build.props` enforcing `<Nullable>enable</Nullable>` and `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`.
+- **Approved Dependencies:** None added yet (using standard BCL and .NET 10 test SDK).

@@ -1,0 +1,32 @@
+﻿# Project Progress: SOC 2 Evaluator
+
+## Current Phase: Phase 0 (Foundations and Feasibility Spikes)
+
+- **Target:** Establish core project skeleton, domain models, provenance & evidence hashing, basic reporters, and run feasibility Spikes A and B.
+- **Branch:** `phase-0/foundations-and-spikes`
+
+---
+
+### Task Status Breakdown
+
+| Task ID | Task Description | Status | Deliverable & Verification |
+|---|---|---|---|
+| **0.1** | Git repo initialization on `main` | **Done** | `main` branch initialized with `README.md`, `.gitignore`, `LICENSE` (MIT), and `docs/plan.md`. Verified clean and pushed to GitHub `DrivenWanderer/soc2-evaluator`. |
+| **0.2** | Branching & solution skeleton | **Done** | Feature branch `phase-0/foundations-and-spikes`, `Soc2Evaluator.slnx`, `Directory.Build.props`, projects (`Cli`, `Core`, `Reporting`, `Tests`), and persistent docs (`progress.md`, `decisions.md`). Verified `dotnet build` and `dotnet test` pass cleanly with nullable enabled and warnings as errors. |
+| **0.3** | CLI host, DI, & logging | **Pending** | `System.CommandLine` host with DI container and logging. Verified `--help` and `scan --help` print correctly. |
+| **0.4** | Core models, provenance & evidence hashing | **Pending** | Domain models (`EvidenceBundle`, `Provenance`, `Finding`, `RuleDefinition`, `ControlMapping`) and SHA-256 manifest hashing. Verified by unit tests. |
+| **0.5** | Markdown & JSON reporters | **Pending** | Initial reporters outputting disclaimer, coverage summary, findings, and bundle hash. Verified by snapshot/unit tests. |
+| **0.6** | Spike A: Roslyn/MSBuild feasibility spike | **Pending** | Evaluate safety and feasibility of `MSBuildWorkspace` on legacy .NET Framework and .NET Core projects. Findings documented and decision submitted. |
+| **0.7** | Spike B: Scanner adapter contract | **Pending** | `IScannerAdapter` abstraction and prototype adapter wrapping gitleaks/Semgrep. Verified by mock/fixture tests. |
+| **0.8** | End-to-end integration & Phase 0 exit | **Pending** | `soc2eval scan .` producing hashed evidence bundle and reports. Verified exit criteria checklist. |
+
+---
+
+### Known Issues & Blockers
+- None at this time.
+
+### Deviations from Plan
+- None.
+
+### Next Step
+- Proceed to Task 0.3 (CLI host, DI, & logging wire-up).

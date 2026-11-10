@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Soc2Evaluator.Adapters/Soc2Evaluator.Adapters.csproj" />
     <Project Path="src/Soc2Evaluator.Cli/Soc2Evaluator.Cli.csproj" />
+    <Project Path="src/Soc2Evaluator.Collectors/Soc2Evaluator.Collectors.csproj" />
     <Project Path="src/Soc2Evaluator.Core/Soc2Evaluator.Core.csproj" />
     <Project Path="src/Soc2Evaluator.Reporting/Soc2Evaluator.Reporting.csproj" />
     <Project Path="src/Soc2Evaluator.Rules/Soc2Evaluator.Rules.csproj" />

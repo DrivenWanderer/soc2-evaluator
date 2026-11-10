@@ -24,6 +24,7 @@
     <ProjectReference Include="..\..\src\Soc2Evaluator.Cli\Soc2Evaluator.Cli.csproj" />
     <ProjectReference Include="..\..\src\Soc2Evaluator.Adapters\Soc2Evaluator.Adapters.csproj" />
     <ProjectReference Include="..\..\src\Soc2Evaluator.Rules\Soc2Evaluator.Rules.csproj" />
+    <ProjectReference Include="..\..\src\Soc2Evaluator.Collectors\Soc2Evaluator.Collectors.csproj" />
   </ItemGroup>
 
 </Project>

@@ -19,10 +19,10 @@ Auditors verify controls from both **source intent** (code, config, governance) 
             |                                                     |
             v                                                     v
    [ Inside-Out: Solution ]                              [ Outside-In: Browser & Endpoint ]
-   • Source Code & Secrets                               • Transport Security (TLS / HSTS)
-   • App Config (web.config, appsettings)                • Security Headers (CSP, CORS)
-   • Dependencies (NuGet / Direct / Transitive)          • Cookie Attributes (Secure, HttpOnly)
-   • CI/CD & Branch Governance                           • Information Leakage & Error Pages
+   • Source Code & Secrets                               • Transport Security (TLS / HSTS) [Planned]
+   • App Config (web.config, appsettings)                • Security Headers (CSP, CORS) [Planned]
+   • Dependencies (NuGet / Direct / Transitive)          • Cookie Attributes (Secure, HttpOnly) [Planned]
+   • CI/CD & Branch Governance                           • Information Leakage & Error Pages [Planned]
 ```
 
 ---
@@ -37,8 +37,10 @@ Inspects the repository, project files, and CI/CD configuration directly:
 
 ---
 
-### 2. Browser & Endpoint Review (Outside-In)
-When invoked with `--url <https://site>`, an external probe evaluates the live, deployed web application:
+### 2. Browser & Endpoint Review (Outside-In) *(Planned for Phase 2)*
+*(This capability is scheduled for Phase 2 and is not currently active in the Phase 1 MVP. The `--url` option is documented here as part of the planned architecture.)*
+
+When invoked with `--url <https://site>`, an external probe will evaluate the live, deployed web application:
 
 - **Transport Security & Cryptography (CFG-001 / CC6.7):** Verifies TLS 1.2+ protocol enforcement, certificate validity/expiration, and strict HTTP-to-HTTPS redirect behavior.
 - **Security Headers (CFG-003 / CC6.6):** Assesses defense-in-depth HTTP response headers:
@@ -59,10 +61,10 @@ When invoked with `--url <https://site>`, an external probe evaluates the live, 
 soc2eval scan . --out ./reports
 ```
 
-### Combined Solution & Live Endpoint Scan
+### Combined Solution & Live Endpoint Scan *(Planned)*
 ```powershell
-# Scan local solution files and probe the live deployed staging site
-soc2eval scan ./src/MySolution.slnx --url https://staging.example.com --out ./reports
+# (Planned for Phase 2) Scan local solution files and probe the live deployed staging site
+# soc2eval scan ./src/MySolution.slnx --url https://staging.example.com --out ./reports
 ```
 
 ### Baseline Comparison (Delta Tracking)

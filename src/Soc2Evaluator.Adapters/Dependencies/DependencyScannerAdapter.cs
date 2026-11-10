@@ -71,6 +71,28 @@ public class DependencyScannerAdapter : IScannerAdapter
     public async Task<AdapterExecutionResult> ExecuteAsync(AdapterExecutionContext context, CancellationToken cancellationToken = default)
     {
         var startTime = DateTimeOffset.UtcNow;
+
+        if (context.Offline)
+        {
+            var notRunProvenance = new ToolExecutionProvenance(
+                ToolName: ToolName,
+                ToolVersion: null,
+                Arguments: [],
+                StartTimeUtc: startTime,
+                EndTimeUtc: DateTimeOffset.UtcNow,
+                ExitCode: null,
+                Status: "NotRun",
+                ErrorMessage: "Dependency vulnerability scanning requires network access to query vulnerability databases and was skipped because --offline was specified."
+            );
+
+            return new AdapterExecutionResult(
+                Provenance: notRunProvenance,
+                Findings: [],
+                Artifacts: [],
+                RawArtifactBytes: new Dictionary<string, byte[]>()
+            );
+        }
+
         var hasOsv = _processRunner.ExistsOnPath("osv-scanner");
         var hasDotNet = _processRunner.ExistsOnPath("dotnet");
 
@@ -182,9 +204,10 @@ public class DependencyScannerAdapter : IScannerAdapter
         var version = await GetVersionAsync(cancellationToken);
         var targetPath = context.TargetPath;
 
-        // If the target is a local directory that exists on disk, check if it contains any .NET projects
+        string? workingDirectory = null;
         if (Directory.Exists(targetPath))
         {
+            workingDirectory = targetPath;
             var hasProjects = false;
             try
             {
@@ -211,6 +234,10 @@ public class DependencyScannerAdapter : IScannerAdapter
                 return new AdapterExecutionResult(notRunProvenance, [], [], new Dictionary<string, byte[]>());
             }
         }
+        else if (File.Exists(targetPath))
+        {
+            workingDirectory = Path.GetDirectoryName(Path.GetFullPath(targetPath));
+        }
 
         var args = new List<string>
         {
@@ -224,7 +251,7 @@ public class DependencyScannerAdapter : IScannerAdapter
         ProcessResult procResult;
         try
         {
-            procResult = await _processRunner.RunAsync("dotnet", args, workingDirectory: targetPath, cancellationToken: cancellationToken);
+            procResult = await _processRunner.RunAsync("dotnet", args, workingDirectory: workingDirectory, cancellationToken: cancellationToken);
         }
         catch (Exception ex)
         {
@@ -355,7 +382,8 @@ public class DependencyScannerAdapter : IScannerAdapter
                 var packageType = isTransitive ? "Transitive" : "Top-level";
                 var location = new FindingLocation(FilePath: projectPath, SettingOrResource: $"{id}@{resolvedVersion}");
                 var findingId = $"DEP-001-{findingIndex++}";
-                var fingerprint = Finding.ComputeFingerprint("DEP-001", location);
+                var advisoryKey = !string.IsNullOrWhiteSpace(advisoryUrl) ? advisoryUrl : string.Empty;
+                var fingerprint = Finding.ComputeFingerprint("DEP-001", location, advisoryKey);
 
                 findings.Add(new Finding(
                     Id: findingId,

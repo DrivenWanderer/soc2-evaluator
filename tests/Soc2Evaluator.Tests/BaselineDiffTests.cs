@@ -83,6 +83,30 @@ public class BaselineDiffTests : IDisposable
     }
 
     [Fact]
+    public void BaselineDiff_EmptyArray_ReturnsEmptyList()
+    {
+        var tempFile = Path.GetTempFileName() + ".json";
+        File.WriteAllText(tempFile, "[]");
+        _tempFiles.Add(tempFile);
+
+        var diffService = new BaselineDiffService();
+        var loadedFindings = diffService.LoadBaselineFindings(tempFile);
+
+        Assert.Empty(loadedFindings);
+    }
+
+    [Fact]
+    public void BaselineDiff_InvalidJsonShape_ThrowsFormatException()
+    {
+        var tempFile = Path.GetTempFileName() + ".json";
+        File.WriteAllText(tempFile, """{ "unrelated": true, "message": "hello" }""");
+        _tempFiles.Add(tempFile);
+
+        var diffService = new BaselineDiffService();
+        Assert.Throws<FormatException>(() => diffService.LoadBaselineFindings(tempFile));
+    }
+
+    [Fact]
     public void BaselineDiff_NonExistentFile_ThrowsFileNotFoundException()
     {
         var diffService = new BaselineDiffService();

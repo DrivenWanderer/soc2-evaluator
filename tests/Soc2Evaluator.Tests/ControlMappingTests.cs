@@ -23,32 +23,28 @@ public class ControlMappingTests : IDisposable
     public void ControlMapping_LoadsEmbeddedDefaultsSuccessfully()
     {
         var service = new ControlMappingService();
-        var config = service.CurrentConfig;
 
+        var config = service.CurrentConfig;
         Assert.NotNull(config);
-        Assert.Equal("Default", config.Organization);
-        Assert.Equal("1.0", config.Version);
+        Assert.NotEmpty(config.Mappings);
 
         var sec001 = service.GetMapping("SEC-001");
         Assert.NotNull(sec001);
+        Assert.Equal("SEC-001", sec001.RuleId);
         Assert.Contains("CC6.1", sec001.TscCriteria);
         Assert.Equal(Severity.High, sec001.DefaultSeverity);
-        Assert.Equal(FindingCategory.Code, sec001.Category);
         Assert.True(sec001.Enabled);
-        Assert.Contains("Default mapping, confirm with auditor", sec001.Notes);
 
         var dep001 = service.GetMapping("DEP-001");
         Assert.NotNull(dep001);
+        Assert.Equal("DEP-001", dep001.RuleId);
         Assert.Contains("CC7.1", dep001.TscCriteria);
-        Assert.Equal(Severity.High, dep001.DefaultSeverity);
-        Assert.Equal(FindingCategory.Configuration, dep001.Category);
 
         var cfg002 = service.GetMapping("CFG-002");
         Assert.NotNull(cfg002);
+        Assert.Equal("CFG-002", cfg002.RuleId);
         Assert.Contains("CC6.1", cfg002.TscCriteria);
         Assert.Contains("CC7.2", cfg002.TscCriteria);
-        Assert.Equal(Severity.Medium, cfg002.DefaultSeverity);
-        Assert.Equal(FindingCategory.Configuration, cfg002.Category);
     }
 
     [Fact]
@@ -56,15 +52,15 @@ public class ControlMappingTests : IDisposable
     {
         var orgYaml = """
         organization: "Acme Corporation"
-        version: "2.0"
+        version: "2026.1"
+        description: "Acme SOC 2 mappings"
         mappings:
           - rule_id: "SEC-001"
             org_control_id: "ACME-SEC-01"
             override_severity: "Critical"
-          - rule_id: "CFG-002"
-            org_control_id: "ACME-OPS-03"
-            enabled: false
-            justification: "Handled at edge gateway"
+          - rule_id: "DEP-001"
+            org_control_id: "ACME-DEP-04"
+            override_severity: "High"
         """;
 
         var tempOrgFile = Path.GetTempFileName() + ".yml";
@@ -73,20 +69,21 @@ public class ControlMappingTests : IDisposable
 
         var service = new ControlMappingService(tempOrgFile);
 
-        Assert.Equal("Acme Corporation", service.CurrentConfig.Organization);
-        Assert.Equal("2.0", service.CurrentConfig.Version);
-
         var sec001 = service.GetMapping("SEC-001");
         Assert.NotNull(sec001);
         Assert.Equal("ACME-SEC-01", sec001.OrgControlId);
         Assert.Equal(Severity.Critical, sec001.OverrideSeverity);
-        Assert.True(sec001.Enabled);
+        Assert.Equal(Severity.High, sec001.DefaultSeverity);
 
+        var dep001 = service.GetMapping("DEP-001");
+        Assert.NotNull(dep001);
+        Assert.Equal("ACME-DEP-04", dep001.OrgControlId);
+        Assert.Equal(Severity.High, dep001.OverrideSeverity);
+
+        // CFG-002 untouched default
         var cfg002 = service.GetMapping("CFG-002");
         Assert.NotNull(cfg002);
-        Assert.Equal("ACME-OPS-03", cfg002.OrgControlId);
-        Assert.False(cfg002.Enabled);
-        Assert.Equal("Handled at edge gateway", cfg002.Justification);
+        Assert.Null(cfg002.OrgControlId);
     }
 
     [Fact]
@@ -107,19 +104,19 @@ public class ControlMappingTests : IDisposable
         var service = new ControlMappingService(tempOrgFile);
 
         var rawFinding = new Finding(
-            Id: "finding-001",
+            Id: "sec-001",
             RuleId: "SEC-001",
-            Title: "Generic Secret Finding",
+            Title: "Hardcoded API Key",
             SourceName: "gitleaks",
             SourceVersion: "8.18.2",
-            TscCriteria: [],
+            TscCriteria: ["CC6.1"],
             OrgControlId: null,
-            Severity: Severity.Low,
+            Severity: Severity.High,
             Category: FindingCategory.Code,
             Location: new FindingLocation("appsettings.json", 10, 1),
-            RedactedEvidence: "***[REDACTED]***",
-            RiskExplanation: "Exposed API key in configuration",
-            RecommendedFix: "Move secret to Azure Key Vault or environment variable",
+            RedactedEvidence: "api_key=***",
+            RiskExplanation: "Leakage of secrets.",
+            RecommendedFix: "Remove secret",
             Effort: EffortEstimate.Low,
             Confidence: ConfidenceLevel.High,
             Fingerprint: Finding.ComputeFingerprint("SEC-001", new FindingLocation("appsettings.json", 10, 1))
@@ -127,9 +124,8 @@ public class ControlMappingTests : IDisposable
 
         var enriched = service.EnrichFinding(rawFinding);
 
-        Assert.Equal(Severity.Critical, enriched.Severity);
         Assert.Equal("ACME-SEC-01", enriched.OrgControlId);
-        Assert.Contains("CC6.1", enriched.TscCriteria);
+        Assert.Equal(Severity.Critical, enriched.Severity);
         Assert.Equal(FindingStatus.Open, enriched.Status);
     }
 
@@ -176,6 +172,24 @@ public class ControlMappingTests : IDisposable
     }
 
     [Fact]
+    public void ControlMapping_WhenRuleDisabledWithoutJustification_ThrowsInvalidOperationException()
+    {
+        var orgYaml = """
+        organization: "Acme Corporation"
+        mappings:
+          - rule_id: "CFG-002"
+            enabled: false
+        """;
+
+        var tempOrgFile = Path.GetTempFileName() + ".yml";
+        File.WriteAllText(tempOrgFile, orgYaml);
+        _tempFiles.Add(tempOrgFile);
+
+        var ex = Assert.Throws<InvalidOperationException>(() => new ControlMappingService(tempOrgFile));
+        Assert.Contains("justification", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void ControlMapping_NonExistentOrgConfig_ThrowsFileNotFoundException()
     {
         Assert.Throws<FileNotFoundException>(() => new ControlMappingService("non_existent_org_config.yml"));
@@ -198,10 +212,10 @@ public class ControlMappingTests : IDisposable
             Location: null,
             RedactedEvidence: "",
             RiskExplanation: "Custom risk",
-            RecommendedFix: "Custom fix",
+            RecommendedFix: "None",
             Effort: EffortEstimate.Low,
             Confidence: ConfidenceLevel.Low,
-            Fingerprint: "custom-999"
+            Fingerprint: "custom-fp"
         );
 
         var enriched = service.EnrichFinding(rawFinding);

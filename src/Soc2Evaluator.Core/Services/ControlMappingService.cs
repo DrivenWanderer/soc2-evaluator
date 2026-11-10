@@ -84,6 +84,13 @@ public class ControlMappingService : IControlMappingService
                         continue;
                     }
 
+                    if (orgItem.Enabled.HasValue && !orgItem.Enabled.Value && string.IsNullOrWhiteSpace(orgItem.Justification))
+                    {
+                        throw new InvalidOperationException(
+                            $"Rule '{orgItem.RuleId}' is disabled (enabled: false) in organization override but is missing a required justification. Per DEC-008, disabling rules requires a justification."
+                        );
+                    }
+
                     if (_mappingsByRuleId.TryGetValue(orgItem.RuleId, out var existing))
                     {
                         // Merge/override
@@ -218,13 +225,14 @@ public class ControlMappingService : IControlMappingService
 
     private static string LoadDefaultYamlContent()
     {
+        // 1. Try embedded manifest resource in Soc2Evaluator.Core assembly
         var assembly = typeof(ControlMappingService).Assembly;
         var resourceNames = assembly.GetManifestResourceNames();
-        var defaultResName = resourceNames.FirstOrDefault(n => n.EndsWith("control-mapping.default.yml", StringComparison.OrdinalIgnoreCase));
+        var mappingResource = resourceNames.FirstOrDefault(r => r.EndsWith("control-mapping.default.yml", StringComparison.OrdinalIgnoreCase));
 
-        if (!string.IsNullOrWhiteSpace(defaultResName))
+        if (!string.IsNullOrWhiteSpace(mappingResource))
         {
-            using var stream = assembly.GetManifestResourceStream(defaultResName);
+            using var stream = assembly.GetManifestResourceStream(mappingResource);
             if (stream != null)
             {
                 using var reader = new StreamReader(stream);
@@ -232,11 +240,14 @@ public class ControlMappingService : IControlMappingService
             }
         }
 
-        // Fallback to local config path if not embedded or during test runs
+        // 2. Try file system relative to AppContext.BaseDirectory
+        var baseDir = AppContext.BaseDirectory;
         var candidatePaths = new[]
         {
+            Path.Combine(baseDir, "config", "control-mapping.default.yml"),
+            Path.Combine(baseDir, "control-mapping.default.yml"),
+            Path.Combine(baseDir, "..", "..", "..", "config", "control-mapping.default.yml"),
             "config/control-mapping.default.yml",
-            "../../config/control-mapping.default.yml",
             "../../../config/control-mapping.default.yml"
         };
 
@@ -253,6 +264,14 @@ public class ControlMappingService : IControlMappingService
 
     private static ControlMappingEntry MapYamlItemToEntry(YamlControlMappingItem item)
     {
+        var enabled = item.Enabled ?? true;
+        if (!enabled && string.IsNullOrWhiteSpace(item.Justification))
+        {
+            throw new InvalidOperationException(
+                $"Rule '{item.RuleId}' is disabled (enabled: false) but is missing a required justification. Per DEC-008, disabling rules requires a justification."
+            );
+        }
+
         return new ControlMappingEntry(
             RuleId: item.RuleId ?? "UNKNOWN",
             TscCriteria: (item.TscCriteria ?? []).AsReadOnly(),
@@ -262,7 +281,7 @@ public class ControlMappingService : IControlMappingService
             Category: ParseCategory(item.Category),
             DefaultSeverity: ParseSeverity(item.DefaultSeverity),
             OverrideSeverity: ParseSeverity(item.OverrideSeverity),
-            Enabled: item.Enabled ?? true,
+            Enabled: enabled,
             Justification: item.Justification,
             Notes: item.Notes
         );

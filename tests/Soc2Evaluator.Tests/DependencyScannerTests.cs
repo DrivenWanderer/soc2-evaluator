@@ -80,6 +80,50 @@ public class DependencyScannerTests
     }
 
     [Fact]
+    public void ParseDotNetVulnerabilities_DifferentPackagesAndAdvisories_GenerateDistinctFingerprints()
+    {
+        const string multiVulnJson = """
+        {
+          "version": 1,
+          "parameters": "--vulnerable",
+          "projects": [
+            {
+              "path": "C:/Projects/SampleApp/SampleApp.csproj",
+              "frameworks": [
+                {
+                  "framework": "net8.0",
+                  "topLevelPackages": [
+                    {
+                      "id": "PackageA",
+                      "resolvedVersion": "1.0.0",
+                      "vulnerabilities": [
+                        { "severity": "High", "advisoryurl": "https://advisories/GHSA-1" },
+                        { "severity": "Medium", "advisoryurl": "https://advisories/GHSA-2" }
+                      ]
+                    },
+                    {
+                      "id": "PackageB",
+                      "resolvedVersion": "2.0.0",
+                      "vulnerabilities": [
+                        { "severity": "Low", "advisoryurl": "https://advisories/GHSA-3" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        """;
+
+        var findings = DependencyScannerAdapter.ParseDotNetVulnerabilities(multiVulnJson);
+
+        Assert.Equal(3, findings.Count);
+        var fingerprints = findings.Select(f => f.Fingerprint).Distinct().ToList();
+        Assert.Equal(3, fingerprints.Count);
+    }
+
+    [Fact]
     public async Task DependencyScanner_WhenOsvMissing_FallsBackToDotNetList()
     {
         var mockRunner = new MockProcessRunner(hasOsv: false, hasDotNet: true)
@@ -97,6 +141,50 @@ public class DependencyScannerTests
         Assert.Single(result.Artifacts);
         Assert.Equal("dotnet-vulnerable-packages.json", result.Artifacts[0].Name);
         Assert.True(result.RawArtifactBytes.ContainsKey("dotnet-vulnerable-packages.json"));
+    }
+
+    [Fact]
+    public async Task DependencyScanner_WithFileTarget_UsesParentDirectoryAsWorkingDirectory()
+    {
+        var tempProj = Path.Combine(Path.GetTempPath(), $"TestProj-{Guid.NewGuid():N}.csproj");
+        await File.WriteAllTextAsync(tempProj, "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+
+        try
+        {
+            var mockRunner = new MockProcessRunner(hasOsv: false, hasDotNet: true)
+            {
+                OnDotNetRun = (args) => new ProcessResult(0, SampleDotNetListJson, "", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow)
+            };
+
+            var adapter = new DependencyScannerAdapter(mockRunner, _hasher);
+            var result = await adapter.ExecuteAsync(new AdapterExecutionContext(tempProj, ["CC7.1"]));
+
+            Assert.NotNull(result);
+            Assert.Equal("Success", result.Provenance.Status);
+            var expectedDir = Path.GetDirectoryName(Path.GetFullPath(tempProj));
+            Assert.Equal(expectedDir, mockRunner.LastWorkingDirectory);
+        }
+        finally
+        {
+            if (File.Exists(tempProj))
+            {
+                File.Delete(tempProj);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task DependencyScanner_WhenOffline_SkipsScansWithNotRunStatus()
+    {
+        var mockRunner = new MockProcessRunner(hasOsv: true, hasDotNet: true);
+        var adapter = new DependencyScannerAdapter(mockRunner, _hasher);
+
+        var result = await adapter.ExecuteAsync(new AdapterExecutionContext("C:/Projects/SampleApp", ["CC7.1"], Offline: true));
+
+        Assert.NotNull(result);
+        Assert.Equal("NotRun", result.Provenance.Status);
+        Assert.Empty(result.Findings);
+        Assert.Contains("--offline", result.Provenance.ErrorMessage);
     }
 
     [Fact]
@@ -174,6 +262,7 @@ public class DependencyScannerTests
         private readonly bool _hasOsv;
         private readonly bool _hasDotNet;
 
+        public string? LastWorkingDirectory { get; private set; }
         public Func<IReadOnlyList<string>, ProcessResult>? OnOsvRun { get; set; }
         public Func<IReadOnlyList<string>, ProcessResult>? OnDotNetRun { get; set; }
 
@@ -197,6 +286,8 @@ public class DependencyScannerTests
             IReadOnlyDictionary<string, string>? environmentVariables = null,
             CancellationToken cancellationToken = default)
         {
+            LastWorkingDirectory = workingDirectory;
+
             if (fileName.Equals("osv-scanner", StringComparison.OrdinalIgnoreCase))
             {
                 if (!_hasOsv) throw new FileNotFoundException("osv-scanner not found");

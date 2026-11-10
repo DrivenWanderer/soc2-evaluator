@@ -94,6 +94,10 @@ public class BaselineDiffService : IBaselineDiffService
             {
                 return JsonSerializer.Deserialize<List<Finding>>(directFindings.Value.GetRawText(), JsonOptions) ?? [];
             }
+
+            throw new FormatException(
+                $"Unsupported baseline JSON format in '{baselineFilePath}'. The JSON object must contain a 'findings' array or a 'manifest.findings' array."
+            );
         }
 
         // 3. Direct array of findings: [ { ... }, { ... } ]
@@ -102,6 +106,8 @@ public class BaselineDiffService : IBaselineDiffService
             return JsonSerializer.Deserialize<List<Finding>>(root.GetRawText(), JsonOptions) ?? [];
         }
 
-        return [];
+        throw new FormatException(
+            $"Unsupported baseline JSON format in '{baselineFilePath}'. Expected a JSON array of findings or a JSON object containing findings."
+        );
     }
 }

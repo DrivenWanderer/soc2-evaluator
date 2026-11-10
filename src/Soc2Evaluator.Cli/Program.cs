@@ -69,6 +69,10 @@ var rootCommand = CommandLineBuilder.BuildRootCommand(async (scanOptions, cancel
     {
         logger.LogInformation("Baseline findings comparison: {BaselinePath}", Path.GetFullPath(scanOptions.BaselinePath));
     }
+    if (!string.IsNullOrWhiteSpace(scanOptions.Url))
+    {
+        logger.LogWarning("External URL probe (--url) is planned for Phase 2 and is not yet available in Phase 1. Skipping live probe for '{Url}'.", scanOptions.Url);
+    }
 
     // Validate formats
     var supportedFormats = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "md", "json" };
@@ -147,34 +151,42 @@ var rootCommand = CommandLineBuilder.BuildRootCommand(async (scanOptions, cancel
     await File.WriteAllTextAsync(bundleJsonPath, bundleJson, cancellationToken);
     logger.LogInformation("Evidence bundle saved: {BundlePath}", bundleJsonPath);
 
-    if (!string.IsNullOrWhiteSpace(manifest.ManifestSha256))
-    {
-        var shaPath = Path.Combine(outDir, "manifest.sha256");
-        await File.WriteAllTextAsync(shaPath, $"{manifest.ManifestSha256}  evidence-bundle.json\n", cancellationToken);
-        logger.LogInformation("Manifest checksum saved: {ChecksumPath}", shaPath);
-    }
+    var bundleBytes = System.Text.Encoding.UTF8.GetBytes(bundleJson);
+    var bundleSha256 = System.Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bundleBytes)).ToLowerInvariant();
+    var shaPath = Path.Combine(outDir, "manifest.sha256");
+    await File.WriteAllTextAsync(shaPath, $"{bundleSha256}  evidence-bundle.json\n", cancellationToken);
+    logger.LogInformation("Evidence bundle checksum saved: {ChecksumPath}", shaPath);
 
     logger.LogInformation("Evaluation completed. Total findings: {FindingsCount}", manifest.Findings.Count);
 
     // CI Gating evaluation (--fail-on)
     if (!string.IsNullOrWhiteSpace(scanOptions.FailOnSeverity))
     {
-        if (Enum.TryParse<Severity>(scanOptions.FailOnSeverity, ignoreCase: true, out var threshold))
+        var rawThreshold = scanOptions.FailOnSeverity.Trim();
+        var definedNames = Enum.GetNames<Severity>();
+        var matchingName = definedNames.FirstOrDefault(n => n.Equals(rawThreshold, StringComparison.OrdinalIgnoreCase));
+        if (matchingName == null || !Enum.TryParse<Severity>(matchingName, ignoreCase: true, out var threshold))
         {
-            var violatingFindings = manifest.Findings.Where(f => f.Severity >= threshold).ToList();
-            if (violatingFindings.Count > 0)
-            {
-                logger.LogError(
-                    "CI Gate Failed: {Count} finding(s) met or exceeded the --fail-on threshold of {Threshold}.",
-                    violatingFindings.Count,
-                    threshold
-                );
-                return 2;
-            }
+            logger.LogError(
+                "Invalid --fail-on severity threshold: '{Threshold}'. Valid values are: {ValidValues}.",
+                scanOptions.FailOnSeverity,
+                string.Join(", ", definedNames)
+            );
+            return 1;
         }
-        else
+
+        var violatingFindings = manifest.Findings
+            .Where(f => f.Status == FindingStatus.Open && f.Severity >= threshold)
+            .ToList();
+
+        if (violatingFindings.Count > 0)
         {
-            logger.LogWarning("Unrecognized --fail-on severity threshold: '{Threshold}'. Gate check skipped.", scanOptions.FailOnSeverity);
+            logger.LogError(
+                "CI Gate Failed: {Count} actionable open finding(s) met or exceeded the --fail-on threshold of {Threshold}.",
+                violatingFindings.Count,
+                threshold
+            );
+            return 2;
         }
     }
 

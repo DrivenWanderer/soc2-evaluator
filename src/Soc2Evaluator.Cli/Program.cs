@@ -40,6 +40,7 @@ services.AddSingleton<IRuleCheck, MissingAuthorizeCheck>();
 services.AddSingleton<IRuleCheck, DisabledCertValidationCheck>();
 services.AddSingleton<IRuleCheck, SqlConcatenationCheck>();
 services.AddSingleton<IRuleCheck, PermissiveCorsCheck>();
+services.AddSingleton<IRuleCheck, LockfilePinningCheck>();
 
 // Adapters
 services.AddSingleton<IScannerAdapter, GitleaksAdapter>();

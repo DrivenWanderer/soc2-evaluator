@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Soc2Evaluator.Core.Models;
 
 namespace Soc2Evaluator.Adapters.Sarif;
@@ -133,8 +134,6 @@ public static class SarifParser
                     }
                 }
 
-                // If snippet is empty or contains raw secret-like patterns, mask appropriately
-                var redactedEvidence = RedactSecretSnippet(evidenceSnippet);
                 var category = FindingCategory.Code;
                 var fingerprint = Finding.ComputeFingerprint(ruleId, location, scannerRuleId);
 
@@ -149,7 +148,7 @@ public static class SarifParser
                     Severity: severity,
                     Category: category,
                     Location: location,
-                    RedactedEvidence: redactedEvidence,
+                    RedactedEvidence: RedactSensitiveContent(evidenceSnippet, ruleId),
                     RiskExplanation: $"Potential security issue identified by {toolName}: {message}",
                     RecommendedFix: "Review the referenced code or configuration, remove any hardcoded sensitive values, and store credentials securely.",
                     Effort: EffortEstimate.Low,
@@ -189,10 +188,9 @@ public static class SarifParser
         {
             if (obj.TryGetPropertyValue("snippet", out var snipNode) && snipNode is JsonObject snipObj)
             {
-                if (snipObj.TryGetPropertyValue("text", out var textNode) && textNode != null)
+                if (snipObj.ContainsKey("text"))
                 {
-                    var rawText = textNode.GetValue<string>();
-                    snipObj["text"] = RedactSecretSnippet(rawText);
+                    snipObj["text"] = "***[REDACTED]***";
                 }
             }
 
@@ -216,15 +214,27 @@ public static class SarifParser
         }
     }
 
-    private static string RedactSecretSnippet(string snippet)
+    private static string RedactSensitiveContent(string snippet, string ruleId)
     {
         if (string.IsNullOrWhiteSpace(snippet))
         {
-            return "[redacted evidence snippet]";
+            return "***[REDACTED]***";
         }
 
-        // Mask secret/password values if matched in key=value patterns
-        var masked = System.Text.RegularExpressions.Regex.Replace(
+        // For secret-detection rules (e.g. SEC-001) or short snippets containing secrets, redact with ***[REDACTED]***
+        if (ruleId.StartsWith("SEC-001", StringComparison.OrdinalIgnoreCase))
+        {
+            if (snippet.Length <= 8)
+            {
+                return "***[REDACTED]***";
+            }
+
+            var prefix = snippet[..3];
+            return $"{prefix}***[REDACTED]***";
+        }
+
+        // For other rules (e.g. Semgrep code flaw findings), mask any key=value secrets while preserving code
+        var masked = Regex.Replace(
             snippet,
             @"(?i)(password|secret|token|api[_-]?key|client[_-]?secret)\s*[:=]\s*[""']?([^\r\n""';\s]+)[""']?",
             "$1=********"

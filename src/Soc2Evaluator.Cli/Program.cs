@@ -35,6 +35,11 @@ services.AddSingleton<ISuppressionService, SuppressionService>();
 
 // Rules
 services.AddSingleton<IRuleCheck, VerboseErrorsCheck>();
+services.AddSingleton<IRuleCheck, WeakCryptoCheck>();
+services.AddSingleton<IRuleCheck, MissingAuthorizeCheck>();
+services.AddSingleton<IRuleCheck, DisabledCertValidationCheck>();
+services.AddSingleton<IRuleCheck, SqlConcatenationCheck>();
+services.AddSingleton<IRuleCheck, PermissiveCorsCheck>();
 
 // Adapters
 services.AddSingleton<IScannerAdapter, GitleaksAdapter>();

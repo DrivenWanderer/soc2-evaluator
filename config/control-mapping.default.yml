@@ -12,6 +12,49 @@ mappings:
     enabled: true
     notes: "Default mapping, confirm with auditor. Maps to logical access controls protecting credentials."
 
+  - rule_id: "SEC-002"
+    title: "Weak cryptographic algorithm"
+    description: "Detects the use of broken or outdated cryptographic algorithms such as MD5, SHA1, DES, or RC4."
+    tsc_criteria:
+      - "CC6.1"
+      - "CC6.7"
+    default_severity: "High"
+    category: "Code"
+    enabled: true
+    notes: "Default mapping, confirm with auditor. Maps to data protection and cryptographic transmission security."
+
+  - rule_id: "SEC-003"
+    title: "Missing authentication/authorization on endpoints"
+    description: "Identifies exposed API or web endpoints lacking explicit authorization controls or authentication requirements."
+    tsc_criteria:
+      - "CC6.1"
+      - "CC6.3"
+    default_severity: "High"
+    category: "Code"
+    enabled: true
+    notes: "Default mapping, confirm with auditor. Maps to role-based access control and principle of least privilege."
+
+  - rule_id: "SEC-004"
+    title: "Disabled TLS certificate validation"
+    description: "Detects custom callbacks or options that bypass TLS server certificate validation, leaving connections vulnerable to MITM attacks."
+    tsc_criteria:
+      - "CC6.7"
+    default_severity: "High"
+    category: "Code"
+    enabled: true
+    notes: "Default mapping, confirm with auditor. Maps to transmission integrity and encryption in transit."
+
+  - rule_id: "SEC-005"
+    title: "SQL injection via string concatenation"
+    description: "Detects raw SQL queries constructed using string concatenation or unescaped string interpolation instead of parameterized queries."
+    tsc_criteria:
+      - "CC6.1"
+      - "CC7.1"
+    default_severity: "High"
+    category: "Code"
+    enabled: true
+    notes: "Default mapping, confirm with auditor. Maps to logical access and vulnerability mitigation."
+
   - rule_id: "DEP-001"
     title: "Known-vulnerable packages (direct and transitive)"
     description: "Identifies third-party dependencies with published CVEs or security advisories."
@@ -21,6 +64,17 @@ mappings:
     category: "Configuration"
     enabled: true
     notes: "Default mapping, confirm with auditor. Maps to vulnerability management and configuration monitoring."
+
+  - rule_id: "DEP-002"
+    title: "Dependency lockfile missing or unpinned"
+    description: "Detects absent package lockfiles, disabled locked restores, or unpinned wildcard dependencies."
+    tsc_criteria:
+      - "CC6.6"
+      - "CC8.1"
+    default_severity: "Medium"
+    category: "Configuration"
+    enabled: true
+    notes: "Default mapping, confirm with auditor. Maps to build reproducibility and change authorization integrity."
 
   - rule_id: "CFG-002"
     title: "Verbose errors / debug enabled in production config"
@@ -32,3 +86,43 @@ mappings:
     category: "Configuration"
     enabled: true
     notes: "Default mapping, confirm with auditor. Maps to data protection and monitoring error anomaly detection."
+
+  - rule_id: "CFG-005"
+    title: "Permissive CORS policy"
+    description: "Detects overly broad Cross-Origin Resource Sharing configurations allowing arbitrary origins with credentials."
+    tsc_criteria:
+      - "CC6.6"
+    default_severity: "Medium"
+    category: "Configuration"
+    enabled: true
+    notes: "Default mapping, confirm with auditor. Maps to network boundary controls and logical access restrictions."
+
+  - rule_id: "CICD-001"
+    title: "Default branch lacks required peer review"
+    description: "Validates that branch protection rules enforce at least one required approving peer review before merge to the default branch."
+    tsc_criteria:
+      - "CC8.1"
+    default_severity: "High"
+    category: "Process"
+    enabled: true
+    notes: "Default mapping, confirm with auditor. Maps to change authorization and segregation of duties."
+
+  - rule_id: "CICD-002"
+    title: "Pipeline definitions contain hardcoded secrets"
+    description: "Detects plaintext tokens, passwords, or credentials embedded directly within CI/CD workflow and pipeline definition files."
+    tsc_criteria:
+      - "CC6.1"
+    default_severity: "High"
+    category: "Configuration"
+    enabled: true
+    notes: "Default mapping, confirm with auditor. Maps to logical credential access controls."
+
+  - rule_id: "CICD-003"
+    title: "Deployment environment lacks approval gate"
+    description: "Verifies that production deployment environments enforce mandatory pre-deployment approval gates."
+    tsc_criteria:
+      - "CC8.1"
+    default_severity: "High"
+    category: "Process"
+    enabled: true
+    notes: "Default mapping, confirm with auditor. Maps to formal change management approval prior to production release."

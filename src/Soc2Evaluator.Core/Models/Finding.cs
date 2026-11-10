@@ -59,6 +59,14 @@ public record FindingLocation(
     }
 }
 
+public record FindingSuppression(
+    string Justification,
+    string Approver,
+    string Ticket,
+    DateTimeOffset ExpiryDate,
+    bool IsExpired = false
+);
+
 public record Finding(
     string Id,
     string RuleId,
@@ -76,7 +84,8 @@ public record Finding(
     EffortEstimate Effort,
     ConfidenceLevel Confidence,
     string Fingerprint,
-    FindingStatus Status = FindingStatus.Open
+    FindingStatus Status = FindingStatus.Open,
+    FindingSuppression? Suppression = null
 )
 {
     /// <summary>

@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Soc2Evaluator.Core.Models;
 
 namespace Soc2Evaluator.Adapters.Sarif;
@@ -10,7 +11,8 @@ public static class SarifParser
         string sarifJson,
         string toolName,
         string defaultRuleId,
-        IReadOnlyList<string> defaultTscCriteria
+        IReadOnlyList<string> defaultTscCriteria,
+        Func<string, (string RuleId, IReadOnlyList<string> TscCriteria)>? ruleMapper = null
     )
     {
         var findings = new List<Finding>();
@@ -54,9 +56,22 @@ public static class SarifParser
                     scannerRuleId = ruleIdProp.GetString();
                 }
 
-                var ruleId = !string.IsNullOrWhiteSpace(defaultRuleId)
-                    ? defaultRuleId
-                    : (scannerRuleId ?? "UNKNOWN");
+                string ruleId;
+                IReadOnlyList<string> tscCriteria;
+
+                if (ruleMapper != null && !string.IsNullOrWhiteSpace(scannerRuleId))
+                {
+                    var mapped = ruleMapper(scannerRuleId);
+                    ruleId = !string.IsNullOrWhiteSpace(mapped.RuleId) ? mapped.RuleId : defaultRuleId;
+                    tscCriteria = mapped.TscCriteria.Count > 0 ? mapped.TscCriteria : defaultTscCriteria;
+                }
+                else
+                {
+                    ruleId = !string.IsNullOrWhiteSpace(defaultRuleId)
+                        ? defaultRuleId
+                        : (scannerRuleId ?? "UNKNOWN");
+                    tscCriteria = defaultTscCriteria;
+                }
 
                 var message = "Security finding detected";
                 if (result.TryGetProperty("message", out var msgProp) && msgProp.TryGetProperty("text", out var textProp))
@@ -98,13 +113,20 @@ public static class SarifParser
 
                         int? line = null;
                         int? col = null;
-                        if (phys.TryGetProperty("region", out var reg))
+
+                        if (phys.TryGetProperty("region", out var region))
                         {
-                            if (reg.TryGetProperty("startLine", out var sl)) line = sl.GetInt32();
-                            if (reg.TryGetProperty("startColumn", out var sc)) col = sc.GetInt32();
-                            if (reg.TryGetProperty("snippet", out var snip) && snip.TryGetProperty("text", out var snipText))
+                            if (region.TryGetProperty("startLine", out var sl))
                             {
-                                evidenceSnippet = snipText.GetString() ?? string.Empty;
+                                line = sl.GetInt32();
+                            }
+                            if (region.TryGetProperty("startColumn", out var sc))
+                            {
+                                col = sc.GetInt32();
+                            }
+                            if (region.TryGetProperty("snippet", out var snip) && snip.TryGetProperty("text", out var st))
+                            {
+                                evidenceSnippet = st.GetString() ?? string.Empty;
                             }
                         }
 
@@ -112,21 +134,21 @@ public static class SarifParser
                     }
                 }
 
-                var findingId = $"{ruleId}-{index++}";
-                var fingerprint = Finding.ComputeFingerprint(ruleId, location);
+                var category = FindingCategory.Code;
+                var fingerprint = Finding.ComputeFingerprint(ruleId, location, scannerRuleId);
 
                 findings.Add(new Finding(
-                    Id: findingId,
+                    Id: $"{ruleId}-{index++:D3}",
                     RuleId: ruleId,
-                    Title: title.Length > 100 ? title[..97] + "..." : title,
+                    Title: title,
                     SourceName: toolName,
                     SourceVersion: toolVersion,
-                    TscCriteria: defaultTscCriteria,
+                    TscCriteria: tscCriteria,
                     OrgControlId: null,
                     Severity: severity,
-                    Category: FindingCategory.Code,
+                    Category: category,
                     Location: location,
-                    RedactedEvidence: RedactSensitiveContent(evidenceSnippet),
+                    RedactedEvidence: RedactSensitiveContent(evidenceSnippet, ruleId),
                     RiskExplanation: $"Potential security issue identified by {toolName}: {message}",
                     RecommendedFix: "Review the referenced code or configuration, remove any hardcoded sensitive values, and store credentials securely.",
                     Effort: EffortEstimate.Low,
@@ -172,11 +194,11 @@ public static class SarifParser
                 }
             }
 
-            foreach (var property in obj)
+            foreach (var kvp in obj)
             {
-                if (property.Value != null)
+                if (kvp.Value != null)
                 {
-                    ScrubSnippetsRecursive(property.Value);
+                    ScrubSnippetsRecursive(kvp.Value);
                 }
             }
         }
@@ -192,21 +214,32 @@ public static class SarifParser
         }
     }
 
-    private static string RedactSensitiveContent(string snippet)
+    private static string RedactSensitiveContent(string snippet, string ruleId)
     {
         if (string.IsNullOrWhiteSpace(snippet))
         {
             return "***[REDACTED]***";
         }
 
-        // If the snippet is short, fully redact
-        if (snippet.Length <= 8)
+        // For secret-detection rules (e.g. SEC-001) or short snippets containing secrets, redact with ***[REDACTED]***
+        if (ruleId.StartsWith("SEC-001", StringComparison.OrdinalIgnoreCase))
         {
-            return "***[REDACTED]***";
+            if (snippet.Length <= 8)
+            {
+                return "***[REDACTED]***";
+            }
+
+            var prefix = snippet[..3];
+            return $"{prefix}***[REDACTED]***";
         }
 
-        // Keep first 3 chars, mask the rest
-        var prefix = snippet[..3];
-        return $"{prefix}***[REDACTED]***";
+        // For other rules (e.g. Semgrep code flaw findings), mask any key=value secrets while preserving code
+        var masked = Regex.Replace(
+            snippet,
+            @"(?i)(password|secret|token|api[_-]?key|client[_-]?secret)\s*[:=]\s*[""']?([^\r\n""';\s]+)[""']?",
+            "$1=********"
+        );
+
+        return masked;
     }
 }

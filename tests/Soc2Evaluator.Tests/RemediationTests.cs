@@ -27,6 +27,33 @@ public class RemediationTests
     }
 
     [Fact]
+    public void RemediationService_LoadsTemplatesForPhase2Rules()
+    {
+        var service = new RemediationService();
+
+        var phase2Rules = new[]
+        {
+            "SEC-002",
+            "SEC-003",
+            "SEC-004",
+            "SEC-005",
+            "CFG-005",
+            "DEP-002",
+            "CICD-001",
+            "CICD-002",
+            "CICD-003"
+        };
+
+        foreach (var ruleId in phase2Rules)
+        {
+            var template = service.GetRemediationTemplate(ruleId);
+            Assert.NotNull(template);
+            Assert.Contains(ruleId, template);
+            Assert.Contains("Remediation Guidance", template);
+        }
+    }
+
+    [Fact]
     public void RemediationService_EnrichesFindingWithAuthoritativeTemplate()
     {
         var service = new RemediationService();

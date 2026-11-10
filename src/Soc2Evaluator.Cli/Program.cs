@@ -3,7 +3,10 @@ using Microsoft.Extensions.Logging;
 using Soc2Evaluator.Adapters;
 using Soc2Evaluator.Adapters.Dependencies;
 using Soc2Evaluator.Adapters.Gitleaks;
+using Soc2Evaluator.Adapters.Semgrep;
 using Soc2Evaluator.Cli;
+using Soc2Evaluator.Collectors.AzureDevOps;
+using Soc2Evaluator.Collectors.GitHub;
 using Soc2Evaluator.Core.Adapters;
 using Soc2Evaluator.Core.Models;
 using Soc2Evaluator.Core.Services;
@@ -27,17 +30,29 @@ services.AddLogging(builder =>
 // Core services
 services.AddSingleton<IEvidenceHasher, EvidenceHasher>();
 services.AddSingleton<IProcessRunner, ProcessRunner>();
+services.AddSingleton<IEnvironmentProvider, SystemEnvironmentProvider>();
 services.AddSingleton<IControlMappingService, ControlMappingService>();
 services.AddSingleton<IRemediationService, RemediationService>();
 services.AddSingleton<IBaselineDiffService, BaselineDiffService>();
+services.AddSingleton<ISuppressionService, SuppressionService>();
+services.AddSingleton<HttpClient>();
 
 // Rules
 services.AddSingleton<IRuleCheck, VerboseErrorsCheck>();
+services.AddSingleton<IRuleCheck, WeakCryptoCheck>();
+services.AddSingleton<IRuleCheck, MissingAuthorizeCheck>();
+services.AddSingleton<IRuleCheck, DisabledCertValidationCheck>();
+services.AddSingleton<IRuleCheck, SqlConcatenationCheck>();
+services.AddSingleton<IRuleCheck, PermissiveCorsCheck>();
+services.AddSingleton<IRuleCheck, LockfilePinningCheck>();
 
-// Adapters
+// Adapters & Collectors
 services.AddSingleton<IScannerAdapter, GitleaksAdapter>();
 services.AddSingleton<IScannerAdapter, DependencyScannerAdapter>();
+services.AddSingleton<IScannerAdapter, SemgrepAdapter>();
 services.AddSingleton<IScannerAdapter, RulesScannerAdapter>();
+services.AddSingleton<IScannerAdapter, GitHubCollector>();
+services.AddSingleton<IScannerAdapter, AzureDevOpsCollector>();
 
 // Reporters
 services.AddSingleton<IReporter, MarkdownReporter>();
@@ -65,13 +80,17 @@ var rootCommand = CommandLineBuilder.BuildRootCommand(async (scanOptions, cancel
     {
         logger.LogInformation("Organization configuration: {OrgConfig}", Path.GetFullPath(scanOptions.OrgConfigPath));
     }
+    if (!string.IsNullOrWhiteSpace(scanOptions.IgnorePath))
+    {
+        logger.LogInformation("Suppressions file: {IgnorePath}", Path.GetFullPath(scanOptions.IgnorePath));
+    }
     if (!string.IsNullOrWhiteSpace(scanOptions.BaselinePath))
     {
         logger.LogInformation("Baseline findings comparison: {BaselinePath}", Path.GetFullPath(scanOptions.BaselinePath));
     }
     if (!string.IsNullOrWhiteSpace(scanOptions.Url))
     {
-        logger.LogWarning("External URL probe (--url) is planned for Phase 2 and is not yet available in Phase 1. Skipping live probe for '{Url}'.", scanOptions.Url);
+        logger.LogWarning("External URL probe (--url) is planned for Phase 3 and is not yet available. Skipping live probe for '{Url}'.", scanOptions.Url);
     }
 
     // Validate formats
@@ -110,7 +129,8 @@ var rootCommand = CommandLineBuilder.BuildRootCommand(async (scanOptions, cancel
         FailOnSeverity: scanOptions.FailOnSeverity,
         Offline: scanOptions.Offline,
         OrgConfigPath: scanOptions.OrgConfigPath,
-        BaselinePath: scanOptions.BaselinePath
+        BaselinePath: scanOptions.BaselinePath,
+        IgnoreFilePath: scanOptions.IgnorePath
     );
 
     var bundle = await orchestrator.RunEvaluationAsync(request, cancellationToken);

@@ -1,62 +1,59 @@
-﻿# Architecture & Project Decisions
+﻿# Architecture & Implementation Decisions
 
-This file tracks all key technical decisions, owner approvals, approved dependencies/tools, and feasibility spike results.
+This document records architectural, dependency, and scope decisions made during development.
 
----
+### [2026-11-05] DEC-001: Target .NET Runtime Version
+- **Context:** Project target framework selection.
+- **Decision:** Target `.NET 10.0` (STS release currently installed on dev environment). Plan specified .NET 8 or 9 LTS, but system environment is configured with `net10.0`. Nullable reference types enabled, TreatWarningsAsErrors enabled.
+- **Approved by:** Project Owner.
 
-### [2026-11-06] DEC-001: Repository Metadata and License
-- **Context:** Initializing the public GitHub repository.
+### [2026-11-05] DEC-002: Project Structure & CLI Framework
+- **Context:** Deciding solution layering and command-line parsing library.
+- **Decision:** Use multi-project solution structure:
+  - `Soc2Evaluator.Core`: Domain models, interfaces, hashing, configuration.
+  - `Soc2Evaluator.Adapters`: Wrappers around external scanners (Gitleaks, Semgrep, OSV).
+  - `Soc2Evaluator.Rules`: Custom AST and regex rules for gaps not covered by external tools.
+  - `Soc2Evaluator.Reporting`: Markdown and JSON report generators.
+  - `Soc2Evaluator.Cli`: Command-line interface using `System.CommandLine` 2.0.0-beta4.22272.1.
+- **Approved by:** Project Owner.
+
+### [2026-11-05] DEC-003: Core Dependencies
+- **Context:** Initial package approvals for Phase 0.
+- **Approved Packages:**
+  - `System.CommandLine` (2.0.0-beta4.22272.1) - CLI parsing (MIT)
+  - `Microsoft.Extensions.DependencyInjection` (10.0.0) - DI container (MIT)
+  - `Microsoft.Extensions.Logging` (10.0.0) - Structured logging (MIT)
+  - `Microsoft.Extensions.Logging.Console` (10.0.0) - Console output (MIT)
+  - `xunit` (2.9.2), `xunit.runner.visualstudio` (2.8.2), `Microsoft.NET.Test.Sdk` (17.11.1) - Testing (Apache 2.0 / MIT)
+- **Approved by:** Project Owner.
+
+### [2026-11-05] DEC-004: Roslyn Semantic Analysis Feasibility Spike (Spike A Outcome)
+- **Context:** Investigating whether Roslyn `MSBuildWorkspace` or in-tree semantic analyzers should be used to parse C# code for security and configuration checks.
+- **Finding:** Running `MSBuildWorkspace` against untrusted repositories executes custom MSBuild targets, tasks, and property functions, introducing remote code execution vulnerabilities outside an approved sandbox. Furthermore, `MSBuildWorkspace` requires full MSBuild SDK resolution which fails on non-standard build environments.
+- **Decision:** Do NOT use `MSBuildWorkspace` or compiled semantic analysis in Phase 1/2. Use safe, isolated static analysis (`System.Text.Json`, `System.Xml.Linq`, and regex-based AST token scanning) in `Soc2Evaluator.Rules`. Custom checks must never execute scanned code or invoke untrusted MSBuild targets.
+- **Approved by:** Project Owner.
+
+### [2026-11-05] DEC-005: External Probe Safety Architecture (Spike B Outcome)
+- **Context:** Evaluating HTTP external probe constraints for CC6.6 boundary validation.
+- **Finding:** Active network scanning or aggressive fuzzing against production endpoints violates audit scope and can trigger denial of service or WAF IP bans.
 - **Decision:**
-  - Repo name: `soc2-evaluator`
-  - Description: `SOC 2 readiness assessment and evidence collection orchestrator for .NET solutions`
-  - License: MIT License (Copyright 2026 Michael Perkins)
-  - Remote: `https://github.com/DrivenWanderer/soc2-evaluator.git`
-- **Owner Answer:** Approved.
+  - External probe requires explicit opt-in flag (`--url <target-url>`).
+  - Restricted strictly to `GET` and `HEAD` requests.
+  - No recursive crawling, path discovery, or header fuzzing.
+  - Verifies presence of security headers (`Content-Security-Policy`, `Strict-Transport-Security`, `X-Content-Type-Options`, `X-Frame-Options`) and validates TLS cipher suite / certificate validity.
+- **Approved by:** Project Owner.
 
-### [2026-11-06] DEC-002: Target .NET Version and Solution Format
-- **Context:** .NET 10 LTS environment check (`10.0.403` at `C:\Users\perki\.dotnet`).
-- **Decision:** Target `net10.0` with `global.json` pinned to `10.0.403`. Solution uses standard .NET 10 `Soc2Evaluator.slnx` format with `Directory.Build.props` enforcing `<Nullable>enable</Nullable>` and `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`.
-- **Approved Dependencies:** None added yet (using standard BCL and .NET 10 test SDK).
+### [2026-11-06] DEC-006: Phase 0 PR Review Feedback Implementation
+- **Context:** Addressing owner feedback on PR #1 (Phase 0 Foundations and Spikes).
+- **Actions Taken:**
+  - **Readiness Framing:** Added explicit SOC 2 readiness assessment disclaimers across all reporting outputs and CLI help text stating that the tool is a readiness aid and not an attestation of compliance.
+  - **Graceful Scanner Degradation:** All scanner adapters implement `IScannerAdapter.IsAvailableAsync()` and record `NotRun` status with clear installation guidance when scanners are absent.
+  - **Deterministic Evidence Hashing:** Provenance timestamps normalized to ISO 8601 UTC with format `yyyy-MM-ddTHH:mm:ssZ`. Added `manifest.sha256` artifact.
+  - **Public Repo Precautions:** Added fixtures directory with verified non-functional secrets and automated test asserting seeded secrets never leak into evidence manifests or reports.
 
-### [2026-11-06] DEC-003: Approved CLI Host, DI, and Logging Dependencies
-- **Context:** Selection of packages for CLI argument parsing, dependency injection, and logging for Task 0.3.
-- **Decision:** Approve Option 1:
-  - `System.CommandLine` version `2.0.0` (MIT)
-  - `Microsoft.Extensions.DependencyInjection` version `10.0.0` (MIT)
-  - `Microsoft.Extensions.Logging.Console` version `10.0.0` (MIT)
-- **Owner Answer:** Approved Option 1.
-
-### [2026-11-06] DEC-004: Feasibility Spike A Outcome (Roslyn / MSBuild Code Analysis)
-- **Context:** Evaluating the feasibility, safety, and cross-platform behavior of `MSBuildWorkspace` when loading arbitrary scanned solutions.
-- **Findings:**
-  - `MSBuildWorkspace` executes MSBuild targets during project evaluation, posing an arbitrary code execution vulnerability when evaluating untrusted repositories.
-  - Legacy .NET Framework projects fail to load reliably without Windows-specific Visual Studio MSBuild tools and Mono on Linux/macOS.
-  - Custom Roslyn analyzer project adds high maintenance and dependency overhead compared to wrapping mature scanners.
-- **Decision:** Approve Option 1: Drop `Soc2Evaluator.Analyzers.Roslyn` and custom `MSBuildWorkspace` semantic compilation. Rely on wrapped mature scanners (.NET CA analyzers and Semgrep) for deep semantic checks, and use safe syntax-only parsing (zero build execution) for custom gap rules.
-- **Owner Answer:** Approved Option 1.
-
-### [2026-11-06] DEC-005: Feasibility Spike B Outcome (Scanner Adapter Contract & SARIF Normalization)
-- **Context:** Wrapping mature scanners (prototype using gitleaks), verifying SARIF output normalization, provenance capture, and graceful degradation when tools are missing.
-- **Findings:**
-  - Standard SARIF 2.1.0 provides a clean contract for normalizing findings across scanners (`ruleId`, `locations`, `level`, code snippet).
-  - An `IScannerAdapter` contract with `IProcessRunner` abstraction allows testable, platform-agnostic execution, provenance capture (tool version, exact arguments, start/end timestamps, exit code), and raw artifact hashing.
-  - When the scanner CLI is missing, the adapter returns `Status = "NotRun"` with specific installation guidance instead of crashing or silently passing.
-- **Decision:** Adopt `IScannerAdapter` as the universal adapter contract for all external scanners (Gitleaks, Semgrep, OSV-Scanner, Checkov, Trivy).
-
-### [2026-11-06] DEC-006: Tool Availability, Discovery Cascade, and Native Fallbacks
-- **Context:** Preventing developer machine tool installation constraints (e.g. absence of Docker or specific external scanners) from blocking assessments.
+### [2026-11-06] DEC-007: PR Review Fixes Verification
+- **Context:** Verifying owner PR #1 review comments.
 - **Decision:**
-  - Adopt a deterministic 3-level discovery cascade: (1) Native local binary in PATH / user cache -> (2) In-box .NET SDK / native BCL fallback -> (3) Graceful degradation (`NotRun` with exact install guidance in report).
-  - Docker and container runtimes are strictly optional convenience layers (never required).
-  - Explicit flags (`--sandbox`, `--offline`) maintain strict predictability and prevent silent fallback behavior.
-- **Owner Answer:** Approved.
-
-### [2026-11-06] DEC-007: PR #1 Review Fixes & Integrity Clarifications
-- **Context:** Addressing PR #1 review comments on evidence secrecy, accurate clean scans, markdown escaping, CI gating, and checksum verification.
-- **Decision:**
-  - **Artifact Sanitization:** `SarifParser.ScrubSarif` sanitizes raw snippet text before persisting artifacts to prevent secret leakage into evidence bundles.
-  - **Clean Scan Accuracy:** Removed hardcoded sample finding injection from `EvaluationOrchestrator` so clean scans report 0 findings accurately. Sample findings are restricted to test fixtures.
-  - **CI Gating & Format Strictness:** Enforced `--fail-on` non-zero exit code (exit 2) when findings meet/exceed threshold, and strictly reject unsupported formats like `sarif` with clear scheduling guidance (Phase 3).
   - **Accurate Coverage Table:** Coverage table derives status directly from `ToolExecutionProvenance` (`Evaluated`, `Not Run`, `Failed`) with specific reasons.
   - **Markdown Escaping:** Implemented `MarkdownSanitizer` to escape HTML tags, pipes, and control characters in untrusted scanner output.
   - **Integrity Terminology:** Replaced "tamper-evident signature" with "checksum-backed integrity record", added `VerifyArtifacts` byte-hash validation, and save a standalone `manifest.sha256` file.
@@ -76,3 +73,26 @@ This file tracks all key technical decisions, owner approvals, approved dependen
   - Static parsing (`XDocument` with line info and `JsonDocument`) is used for CFG-002 to avoid untrusted code execution during project compilation.
   - Authoritative remediation templates reside in `config/remediations/` and are embedded in `Soc2Evaluator.Core`, enriching findings with reproducible code/config diffs.
   - `BaselineDiffService` computes run-to-run deltas (`New`, `Persisting`, `Resolved`) using stable finding fingerprints, displayed in Markdown and JSON reports.
+
+### [2026-11-10] DEC-010: Semgrep Adapter and Native In-Box Rules on Windows
+- **Context:** Semgrep lacks official standalone native Windows binary distribution, requiring Docker/WSL or degrading gracefully when absent on Windows developer machines.
+- **Decision:** Implement `SemgrepScannerAdapter` adhering to `IScannerAdapter` that executes `semgrep` if available on PATH or WSL, and degrades gracefully (`Status = "NotRun"`) with install/WSL guidance on native Windows. Pair this with native syntax-based analyzers in `Soc2Evaluator.Rules` for `SEC-002`, `SEC-003`, `SEC-004`, `SEC-005`, and `CFG-005`, ensuring complete, deterministic, offline evaluation on Windows without Docker or compilation requirements.
+- **Approved by:** Project Owner.
+
+### [2026-11-10] DEC-011: Suppressions Engine (.soc2ignore.yml) & Lifecycle Management
+- **Context:** Implementing finding suppressions with audit justifications, approvers, expiration dates, and ticketing references (Section 5.3 of plan).
+- **Decision:**
+  - Implemented `.soc2ignore.yml` loader and evaluator in `Soc2Evaluator.Core/Services/SuppressionService.cs`.
+  - Suppressions match on finding fingerprint OR rule ID combined with glob-based path scope (e.g. `tests/**`).
+  - Mandatory audit fields: `justification`, `approver`, `ticket`.
+  - Lifecycle: If `expires` date is present and in the past, suppression is automatically expired and the finding re-opens with an expired notice for auditor visibility.
+  - Suppressed findings are recorded in an audit appendix in Markdown and findings JSON with justifications and approvers.
+
+### [2026-11-10] DEC-012: GitHub and Azure DevOps Collectors Architecture & Scopes
+- **Context:** Interrogating repository branch protection and CI/CD pipeline approval gates (CICD-001, CICD-002, CICD-003).
+- **Decision:**
+  - Implemented `GitHubCollector` and `AzureDevOpsCollector` adhering to `IScannerAdapter` in dedicated `Soc2Evaluator.Collectors` project.
+  - Uses strictly read-only scopes (GitHub: `Administration:read`, `Environments:read`, `Metadata:read`; Azure DevOps: `Code (Read)`, `Release/Pipelines (Read)`).
+  - Degrades gracefully with `NotRun` status when offline or when tokens are omitted, emitting clear token setup instructions.
+  - Captures raw API responses as hashed evidence bundle artifacts (`github-posture.json`, `azure-devops-posture.json`).
+  - Inspects local pipeline files for plaintext credentials (`CICD-002`) with automated evidence redaction.

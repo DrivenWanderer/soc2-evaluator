@@ -5,6 +5,8 @@ using Soc2Evaluator.Adapters.Dependencies;
 using Soc2Evaluator.Adapters.Gitleaks;
 using Soc2Evaluator.Adapters.Semgrep;
 using Soc2Evaluator.Cli;
+using Soc2Evaluator.Collectors.AzureDevOps;
+using Soc2Evaluator.Collectors.GitHub;
 using Soc2Evaluator.Core.Adapters;
 using Soc2Evaluator.Core.Models;
 using Soc2Evaluator.Core.Services;
@@ -28,10 +30,12 @@ services.AddLogging(builder =>
 // Core services
 services.AddSingleton<IEvidenceHasher, EvidenceHasher>();
 services.AddSingleton<IProcessRunner, ProcessRunner>();
+services.AddSingleton<IEnvironmentProvider, SystemEnvironmentProvider>();
 services.AddSingleton<IControlMappingService, ControlMappingService>();
 services.AddSingleton<IRemediationService, RemediationService>();
 services.AddSingleton<IBaselineDiffService, BaselineDiffService>();
 services.AddSingleton<ISuppressionService, SuppressionService>();
+services.AddSingleton<HttpClient>();
 
 // Rules
 services.AddSingleton<IRuleCheck, VerboseErrorsCheck>();
@@ -42,11 +46,13 @@ services.AddSingleton<IRuleCheck, SqlConcatenationCheck>();
 services.AddSingleton<IRuleCheck, PermissiveCorsCheck>();
 services.AddSingleton<IRuleCheck, LockfilePinningCheck>();
 
-// Adapters
+// Adapters & Collectors
 services.AddSingleton<IScannerAdapter, GitleaksAdapter>();
 services.AddSingleton<IScannerAdapter, DependencyScannerAdapter>();
 services.AddSingleton<IScannerAdapter, SemgrepAdapter>();
 services.AddSingleton<IScannerAdapter, RulesScannerAdapter>();
+services.AddSingleton<IScannerAdapter, GitHubCollector>();
+services.AddSingleton<IScannerAdapter, AzureDevOpsCollector>();
 
 // Reporters
 services.AddSingleton<IReporter, MarkdownReporter>();

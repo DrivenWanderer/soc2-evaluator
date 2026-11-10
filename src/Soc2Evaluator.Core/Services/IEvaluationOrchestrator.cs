@@ -9,7 +9,9 @@ public record EvaluationRequest(
     IReadOnlyList<string> Formats,
     string? CommitSha = null,
     string? FailOnSeverity = null,
-    bool Offline = false
+    bool Offline = false,
+    string? OrgConfigPath = null,
+    string? BaselinePath = null
 );
 
 public interface IEvaluationOrchestrator

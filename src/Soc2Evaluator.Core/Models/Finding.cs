@@ -51,7 +51,8 @@ public record FindingLocation(
     {
         if (!string.IsNullOrWhiteSpace(FilePath))
         {
-            return LineNumber.HasValue ? $"{FilePath}:{LineNumber}" : FilePath;
+            var baseLoc = LineNumber.HasValue ? $"{FilePath}:{LineNumber}" : FilePath;
+            return !string.IsNullOrWhiteSpace(SettingOrResource) ? $"{baseLoc} ({SettingOrResource})" : baseLoc;
         }
 
         return SettingOrResource ?? "Unknown";
@@ -79,11 +80,21 @@ public record Finding(
 )
 {
     /// <summary>
-    /// Computes a stable fingerprint for this finding across runs based on rule and location.
+    /// Computes a stable fingerprint for this finding across runs based on rule, location, and optional extra identity.
     /// </summary>
-    public static string ComputeFingerprint(string ruleId, FindingLocation? location)
+    public static string ComputeFingerprint(string ruleId, FindingLocation? location, string? extraIdentity = null)
     {
-        var raw = $"{ruleId}:{location?.FilePath ?? location?.SettingOrResource ?? string.Empty}:{location?.LineNumber ?? 0}";
+        var filePath = location?.FilePath;
+        var settingOrResource = location?.SettingOrResource;
+
+        var target = string.IsNullOrWhiteSpace(filePath)
+            ? (settingOrResource ?? string.Empty)
+            : (!string.IsNullOrWhiteSpace(settingOrResource)
+                ? $"{filePath}:{settingOrResource}"
+                : filePath);
+
+        var extra = !string.IsNullOrWhiteSpace(extraIdentity) ? $":{extraIdentity}" : string.Empty;
+        var raw = $"{ruleId}:{target}:{location?.LineNumber ?? 0}{extra}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
         return Convert.ToHexString(hash).ToLowerInvariant();
     }

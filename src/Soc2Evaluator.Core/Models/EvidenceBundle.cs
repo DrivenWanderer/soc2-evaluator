@@ -17,7 +17,8 @@ public record EvidenceManifest(
     IReadOnlyList<ToolExecutionProvenance> ToolProvenance,
     IReadOnlyList<EvidenceArtifact> Artifacts,
     IReadOnlyList<Finding> Findings,
-    string? ManifestSha256 = null
+    string? ManifestSha256 = null,
+    BaselineDelta? BaselineDelta = null
 );
 
 public record EvidenceBundle(

@@ -7,11 +7,22 @@ public class EvaluationOrchestrator : IEvaluationOrchestrator
 {
     private readonly IEnumerable<IScannerAdapter> _adapters;
     private readonly IEvidenceHasher _hasher;
+    private readonly IControlMappingService _mappingService;
+    private readonly IRemediationService? _remediationService;
+    private readonly IBaselineDiffService? _baselineDiffService;
 
-    public EvaluationOrchestrator(IEnumerable<IScannerAdapter> adapters, IEvidenceHasher hasher)
+    public EvaluationOrchestrator(
+        IEnumerable<IScannerAdapter> adapters,
+        IEvidenceHasher hasher,
+        IControlMappingService mappingService,
+        IRemediationService? remediationService = null,
+        IBaselineDiffService? baselineDiffService = null)
     {
         _adapters = adapters;
         _hasher = hasher;
+        _mappingService = mappingService;
+        _remediationService = remediationService;
+        _baselineDiffService = baselineDiffService;
     }
 
     public async Task<EvidenceBundle> RunEvaluationAsync(EvaluationRequest request, CancellationToken cancellationToken = default)
@@ -19,6 +30,11 @@ public class EvaluationOrchestrator : IEvaluationOrchestrator
         var runId = $"run-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..28];
         var timestamp = DateTimeOffset.UtcNow;
         var fullTargetPath = Path.GetFullPath(request.TargetPath);
+
+        if (!string.IsNullOrWhiteSpace(request.OrgConfigPath))
+        {
+            _mappingService.LoadMapping(request.OrgConfigPath);
+        }
 
         var allFindings = new List<Finding>();
         var allProvenance = new List<ToolExecutionProvenance>();
@@ -44,6 +60,17 @@ public class EvaluationOrchestrator : IEvaluationOrchestrator
             }
         }
 
+        var enrichedFindings = allFindings
+            .Select(_mappingService.EnrichFinding)
+            .Select(f => _remediationService?.EnrichWithRemediation(f) ?? f)
+            .ToList();
+
+        BaselineDelta? baselineDelta = null;
+        if (!string.IsNullOrWhiteSpace(request.BaselinePath) && _baselineDiffService != null)
+        {
+            baselineDelta = _baselineDiffService.ComputeDelta(enrichedFindings, request.BaselinePath);
+        }
+
         var unsignedManifest = new EvidenceManifest(
             RunId: runId,
             TimestampUtc: timestamp,
@@ -53,8 +80,9 @@ public class EvaluationOrchestrator : IEvaluationOrchestrator
             CriteriaInScope: request.Criteria,
             ToolProvenance: allProvenance,
             Artifacts: allArtifacts,
-            Findings: allFindings,
-            ManifestSha256: null
+            Findings: enrichedFindings,
+            ManifestSha256: null,
+            BaselineDelta: baselineDelta
         );
 
         var signedManifest = _hasher.AttachManifestChecksum(unsignedManifest);

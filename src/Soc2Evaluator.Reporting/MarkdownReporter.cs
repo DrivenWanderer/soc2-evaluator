@@ -15,10 +15,12 @@ public class MarkdownReporter : IReporter
         // 1. Header
         sb.AppendLine("# SOC 2 Readiness Assessment Report");
         sb.AppendLine();
+        var criteriaHeader = manifest.CriteriaInScope.Count > 0 ? string.Join(", ", manifest.CriteriaInScope) : "All";
         sb.AppendLine("| Parameter | Value |");
         sb.AppendLine("|---|---|");
         sb.AppendLine($"| **Target** | `{MarkdownSanitizer.EscapeTableCell(manifest.Target)}` |");
-        sb.AppendLine($"| **Date (UTC)** | `{manifest.TimestampUtc:yyyy-MM-dd HH:mm:ss} UTC` |");
+        sb.AppendLine($"| **Timestamp (UTC)** | {manifest.TimestampUtc:yyyy-MM-dd HH:mm:ss} UTC |");
+        sb.AppendLine($"| **Criteria in Scope** | {MarkdownSanitizer.EscapeTableCell(criteriaHeader)} |");
         sb.AppendLine($"| **Tool Version** | `v{MarkdownSanitizer.EscapeTableCell(manifest.ToolVersion)}` |");
         sb.AppendLine($"| **Run ID** | `{MarkdownSanitizer.EscapeTableCell(manifest.RunId)}` |");
         sb.AppendLine($"| **Commit SHA** | `{(string.IsNullOrWhiteSpace(manifest.CommitSha) ? "N/A" : MarkdownSanitizer.EscapeTableCell(manifest.CommitSha))}` |");
@@ -146,7 +148,36 @@ public class MarkdownReporter : IReporter
             }
         }
 
-        // 6. Tool Provenance Appendix
+        // 6. Delta vs. Baseline
+        sb.AppendLine("## Delta vs. Baseline");
+        sb.AppendLine();
+        if (manifest.BaselineDelta == null)
+        {
+            sb.AppendLine("No baseline comparison was requested for this run. To compare findings against a previous evaluation run, specify `--baseline <path-to-findings.json>`.");
+            sb.AppendLine();
+        }
+        else
+        {
+            var delta = manifest.BaselineDelta;
+            sb.AppendLine($"- **Baseline Source:** `{MarkdownSanitizer.EscapeMarkdown(delta.BaselinePath)}`");
+            sb.AppendLine($"- **New Findings:** {delta.NewCount}");
+            sb.AppendLine($"- **Persisting Findings:** {delta.PersistingCount}");
+            sb.AppendLine($"- **Resolved Findings:** {delta.ResolvedCount}");
+            sb.AppendLine();
+
+            if (delta.ResolvedCount > 0)
+            {
+                sb.AppendLine("### Resolved Findings");
+                sb.AppendLine();
+                foreach (var resolved in delta.ResolvedFindings)
+                {
+                    sb.AppendLine($"- **[RESOLVED]** `{MarkdownSanitizer.EscapeMarkdown(resolved.RuleId)}`: {MarkdownSanitizer.EscapeMarkdown(resolved.Title)} (`{MarkdownSanitizer.EscapeMarkdown(resolved.Location?.ToString() ?? "N/A")}`)");
+                }
+                sb.AppendLine();
+            }
+        }
+
+        // 7. Tool Provenance Appendix
         sb.AppendLine("## Appendix: Tool Provenance and Execution");
         sb.AppendLine();
         if (manifest.ToolProvenance.Count == 0)

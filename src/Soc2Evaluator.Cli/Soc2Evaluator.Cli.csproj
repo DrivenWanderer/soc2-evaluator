@@ -4,6 +4,7 @@
     <ProjectReference Include="..\Soc2Evaluator.Core\Soc2Evaluator.Core.csproj" />
     <ProjectReference Include="..\Soc2Evaluator.Reporting\Soc2Evaluator.Reporting.csproj" />
     <ProjectReference Include="..\Soc2Evaluator.Adapters\Soc2Evaluator.Adapters.csproj" />
+    <ProjectReference Include="..\Soc2Evaluator.Rules\Soc2Evaluator.Rules.csproj" />
   </ItemGroup>
 
   <ItemGroup>

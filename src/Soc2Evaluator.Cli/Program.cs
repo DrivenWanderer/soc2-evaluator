@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Soc2Evaluator.Adapters;
 using Soc2Evaluator.Adapters.Dependencies;
 using Soc2Evaluator.Adapters.Gitleaks;
+using Soc2Evaluator.Adapters.Semgrep;
 using Soc2Evaluator.Cli;
 using Soc2Evaluator.Core.Adapters;
 using Soc2Evaluator.Core.Models;
@@ -38,6 +39,7 @@ services.AddSingleton<IRuleCheck, VerboseErrorsCheck>();
 // Adapters
 services.AddSingleton<IScannerAdapter, GitleaksAdapter>();
 services.AddSingleton<IScannerAdapter, DependencyScannerAdapter>();
+services.AddSingleton<IScannerAdapter, SemgrepAdapter>();
 services.AddSingleton<IScannerAdapter, RulesScannerAdapter>();
 
 // Reporters

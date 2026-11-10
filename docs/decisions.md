@@ -76,3 +76,8 @@ This file tracks all key technical decisions, owner approvals, approved dependen
   - Static parsing (`XDocument` with line info and `JsonDocument`) is used for CFG-002 to avoid untrusted code execution during project compilation.
   - Authoritative remediation templates reside in `config/remediations/` and are embedded in `Soc2Evaluator.Core`, enriching findings with reproducible code/config diffs.
   - `BaselineDiffService` computes run-to-run deltas (`New`, `Persisting`, `Resolved`) using stable finding fingerprints, displayed in Markdown and JSON reports.
+
+### [2026-11-10] DEC-010: Semgrep Adapter and Native In-Box Rules on Windows
+- **Context:** Semgrep lacks official standalone native Windows binary distribution, requiring Docker/WSL or degrading gracefully when absent on Windows developer machines.
+- **Decision:** Implement `SemgrepScannerAdapter` adhering to `IScannerAdapter` that executes `semgrep` if available on PATH or WSL, and degrades gracefully (`Status = "NotRun"`) with install/WSL guidance on native Windows. Pair this with native syntax-based analyzers in `Soc2Evaluator.Rules` for `SEC-002`, `SEC-003`, `SEC-004`, `SEC-005`, and `CFG-005`, ensuring complete, deterministic, offline evaluation on Windows without Docker or compilation requirements.
+- **Owner Answer:** Approved Option 1.

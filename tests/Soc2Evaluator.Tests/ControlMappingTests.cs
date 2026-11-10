@@ -48,6 +48,38 @@ public class ControlMappingTests : IDisposable
     }
 
     [Fact]
+    public void ControlMapping_AllPhase2Rules_AreConfiguredWithTscCriteriaAndNotes()
+    {
+        var service = new ControlMappingService();
+
+        var phase2Rules = new[]
+        {
+            ("SEC-002", new[] { "CC6.1", "CC6.7" }),
+            ("SEC-003", new[] { "CC6.1", "CC6.3" }),
+            ("SEC-004", new[] { "CC6.7" }),
+            ("SEC-005", new[] { "CC6.1", "CC7.1" }),
+            ("CFG-005", new[] { "CC6.6" }),
+            ("DEP-002", new[] { "CC6.6", "CC8.1" }),
+            ("CICD-001", new[] { "CC8.1" }),
+            ("CICD-002", new[] { "CC6.1" }),
+            ("CICD-003", new[] { "CC8.1" })
+        };
+
+        foreach (var (ruleId, expectedCriteria) in phase2Rules)
+        {
+            var mapping = service.GetMapping(ruleId);
+            Assert.NotNull(mapping);
+            Assert.True(mapping.Enabled);
+            Assert.Contains("confirm with auditor", mapping.Notes, StringComparison.OrdinalIgnoreCase);
+
+            foreach (var crit in expectedCriteria)
+            {
+                Assert.Contains(crit, mapping.TscCriteria);
+            }
+        }
+    }
+
+    [Fact]
     public void ControlMapping_WithOrgOverrides_AppliesCustomControlIdsAndSeverities()
     {
         var orgYaml = """

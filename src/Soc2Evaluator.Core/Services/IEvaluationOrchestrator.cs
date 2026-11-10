@@ -11,7 +11,8 @@ public record EvaluationRequest(
     string? FailOnSeverity = null,
     bool Offline = false,
     string? OrgConfigPath = null,
-    string? BaselinePath = null
+    string? BaselinePath = null,
+    string? IgnoreFilePath = null
 );
 
 public interface IEvaluationOrchestrator

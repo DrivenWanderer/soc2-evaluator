@@ -30,6 +30,7 @@ services.AddSingleton<IProcessRunner, ProcessRunner>();
 services.AddSingleton<IControlMappingService, ControlMappingService>();
 services.AddSingleton<IRemediationService, RemediationService>();
 services.AddSingleton<IBaselineDiffService, BaselineDiffService>();
+services.AddSingleton<ISuppressionService, SuppressionService>();
 
 // Rules
 services.AddSingleton<IRuleCheck, VerboseErrorsCheck>();
@@ -65,13 +66,17 @@ var rootCommand = CommandLineBuilder.BuildRootCommand(async (scanOptions, cancel
     {
         logger.LogInformation("Organization configuration: {OrgConfig}", Path.GetFullPath(scanOptions.OrgConfigPath));
     }
+    if (!string.IsNullOrWhiteSpace(scanOptions.IgnorePath))
+    {
+        logger.LogInformation("Suppressions file: {IgnorePath}", Path.GetFullPath(scanOptions.IgnorePath));
+    }
     if (!string.IsNullOrWhiteSpace(scanOptions.BaselinePath))
     {
         logger.LogInformation("Baseline findings comparison: {BaselinePath}", Path.GetFullPath(scanOptions.BaselinePath));
     }
     if (!string.IsNullOrWhiteSpace(scanOptions.Url))
     {
-        logger.LogWarning("External URL probe (--url) is planned for Phase 2 and is not yet available in Phase 1. Skipping live probe for '{Url}'.", scanOptions.Url);
+        logger.LogWarning("External URL probe (--url) is planned for Phase 3 and is not yet available. Skipping live probe for '{Url}'.", scanOptions.Url);
     }
 
     // Validate formats
@@ -110,7 +115,8 @@ var rootCommand = CommandLineBuilder.BuildRootCommand(async (scanOptions, cancel
         FailOnSeverity: scanOptions.FailOnSeverity,
         Offline: scanOptions.Offline,
         OrgConfigPath: scanOptions.OrgConfigPath,
-        BaselinePath: scanOptions.BaselinePath
+        BaselinePath: scanOptions.BaselinePath,
+        IgnoreFilePath: scanOptions.IgnorePath
     );
 
     var bundle = await orchestrator.RunEvaluationAsync(request, cancellationToken);

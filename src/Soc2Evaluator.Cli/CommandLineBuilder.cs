@@ -43,6 +43,11 @@ public static class CommandLineBuilder
             Description = "Path to organization control mapping, suppressions, and settings YAML"
         };
 
+        var ignoreOpt = new Option<string?>("--ignore")
+        {
+            Description = "Path to .soc2ignore.yml suppression file (defaults to target directory)"
+        };
+
         var evidenceOpt = new Option<string?>("--evidence")
         {
             Description = "Path to process-control attestations YAML (evidence questionnaire)"
@@ -85,6 +90,7 @@ public static class CommandLineBuilder
         scanCommand.Add(urlOpt);
         scanCommand.Add(criteriaOpt);
         scanCommand.Add(orgConfigOpt);
+        scanCommand.Add(ignoreOpt);
         scanCommand.Add(evidenceOpt);
         scanCommand.Add(outOpt);
         scanCommand.Add(formatOpt);
@@ -100,6 +106,7 @@ public static class CommandLineBuilder
                 Url: parseResult.GetValue(urlOpt),
                 Criteria: parseResult.GetValue(criteriaOpt) ?? ["security"],
                 OrgConfigPath: parseResult.GetValue(orgConfigOpt),
+                IgnorePath: parseResult.GetValue(ignoreOpt),
                 EvidencePath: parseResult.GetValue(evidenceOpt),
                 OutputPath: parseResult.GetValue(outOpt) ?? "./reports",
                 Formats: parseResult.GetValue(formatOpt) ?? ["md", "json"],
@@ -143,6 +150,7 @@ public record ScanOptions(
     string? Url,
     string[] Criteria,
     string? OrgConfigPath,
+    string? IgnorePath,
     string? EvidencePath,
     string OutputPath,
     string[] Formats,

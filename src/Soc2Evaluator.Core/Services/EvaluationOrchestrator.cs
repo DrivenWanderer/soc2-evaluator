@@ -10,19 +10,22 @@ public class EvaluationOrchestrator : IEvaluationOrchestrator
     private readonly IControlMappingService _mappingService;
     private readonly IRemediationService? _remediationService;
     private readonly IBaselineDiffService? _baselineDiffService;
+    private readonly ISuppressionService _suppressionService;
 
     public EvaluationOrchestrator(
         IEnumerable<IScannerAdapter> adapters,
         IEvidenceHasher hasher,
         IControlMappingService mappingService,
         IRemediationService? remediationService = null,
-        IBaselineDiffService? baselineDiffService = null)
+        IBaselineDiffService? baselineDiffService = null,
+        ISuppressionService? suppressionService = null)
     {
         _adapters = adapters;
         _hasher = hasher;
         _mappingService = mappingService;
         _remediationService = remediationService;
         _baselineDiffService = baselineDiffService;
+        _suppressionService = suppressionService ?? new SuppressionService();
     }
 
     public async Task<EvidenceBundle> RunEvaluationAsync(EvaluationRequest request, CancellationToken cancellationToken = default)
@@ -65,10 +68,19 @@ public class EvaluationOrchestrator : IEvaluationOrchestrator
             .Select(f => _remediationService?.EnrichWithRemediation(f) ?? f)
             .ToList();
 
+        // Load and apply suppressions (.soc2ignore.yml)
+        var suppressionPath = !string.IsNullOrWhiteSpace(request.IgnoreFilePath)
+            ? request.IgnoreFilePath
+            : fullTargetPath;
+
+        var suppressionRules = _suppressionService.LoadSuppressions(suppressionPath);
+        var suppressionResult = _suppressionService.ApplySuppressions(enrichedFindings, suppressionRules, timestamp);
+        var finalFindings = suppressionResult.Findings;
+
         BaselineDelta? baselineDelta = null;
         if (!string.IsNullOrWhiteSpace(request.BaselinePath) && _baselineDiffService != null)
         {
-            baselineDelta = _baselineDiffService.ComputeDelta(enrichedFindings, request.BaselinePath);
+            baselineDelta = _baselineDiffService.ComputeDelta(finalFindings, request.BaselinePath);
         }
 
         var unsignedManifest = new EvidenceManifest(
@@ -80,9 +92,10 @@ public class EvaluationOrchestrator : IEvaluationOrchestrator
             CriteriaInScope: request.Criteria,
             ToolProvenance: allProvenance,
             Artifacts: allArtifacts,
-            Findings: enrichedFindings,
+            Findings: finalFindings,
             ManifestSha256: null,
-            BaselineDelta: baselineDelta
+            BaselineDelta: baselineDelta,
+            Suppressions: suppressionResult.Suppressions.Count > 0 ? suppressionResult.Suppressions : null
         );
 
         var signedManifest = _hasher.AttachManifestChecksum(unsignedManifest);
